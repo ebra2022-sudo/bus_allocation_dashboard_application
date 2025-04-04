@@ -1,4 +1,7 @@
+import 'package:bus_allocation_dashboard_application/setting_screen.dart';
 import 'package:flutter/material.dart';
+import 'about_screen.dart';
+import 'map_option_screen.dart';
 
 void main() {
   runApp(MyApp());
@@ -20,7 +23,6 @@ class MyApp extends StatelessWidget {
         '/settings': (context) => const SettingsScreen(),
         '/map-options': (context) => const MapOptionsScreen(),
         '/about': (context) => const AboutScreen()
-
       },
     );
   }
@@ -348,70 +350,3 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
-
-// Settings Screen
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {}, icon: Icon(Icons.arrow_back)),
-      ),
-      body: const Center(
-        child: Text(
-          'Settings Screen',
-          style: TextStyle(fontSize: 24),
-        ),
-      ),
-    );
-  }
-}
-
-// Map Options Screen
-class MapOptionsScreen extends StatelessWidget {
-  const MapOptionsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Map Options'),
-        backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {}, icon: Icon(Icons.arrow_back)),
-      ),
-      body: const Center(
-        child: Text(
-          'Map Options Screen',
-          style: TextStyle(fontSize: 24),
-        ),
-      ),
-    );
-  }
-}
-
-// About Screen
-class AboutScreen extends StatelessWidget {
-  const AboutScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('About'),
-        backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {Navigator.pop(context)}, icon: Icon(Icons.arrow_back)),
-      ),
-      body: const Center(
-        child: Text(
-          'About Screen',
-          style: TextStyle(fontSize: 24),
-        ),
-      ),
-    );
-  }
-}
-
