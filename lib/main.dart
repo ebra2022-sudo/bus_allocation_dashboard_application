@@ -12,9 +12,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Admin Dashboard',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.green,
       ),
-      home: DashboardScreen(),
+      home: const DashboardScreen(),
     );
   }
 }
@@ -27,8 +27,17 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  bool _isSidePanelOpen = false; // Tracks if the side panel is open
-  final double _sidePanelWidth = 200.0; // Width of the side panel
+  bool _isSidePanelOpen = false;
+  bool _isMessagePanelOpen = false;
+  final double _sidePanelWidth = 250.0;
+  final double _messagePanelWidth = 300.0;
+
+  double _bottomHeight = 200.0;
+  final double _minHeight = 100.0;
+  final double _maxHeight = 500.0;
+
+  bool _isDragging = false;
+  bool? _isDraggingUp;
 
   void _toggleSidePanel() {
     setState(() {
@@ -36,126 +45,188 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _toggleMessagePanel() {
+    setState(() {
+      _isMessagePanelOpen = !_isMessagePanelOpen;
+    });
+  }
+
+  void _onVerticalDragStart(DragStartDetails details) {
+    setState(() {
+      _isDragging = true;
+    });
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _bottomHeight -= details.delta.dy;
+      _bottomHeight = _bottomHeight.clamp(_minHeight, _maxHeight);
+      _isDraggingUp = details.delta.dy < 0;
+    });
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    setState(() {
+      _isDragging = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final double totalHeight = MediaQuery.of(context).size.height;
+    final double mapHeight = totalHeight - _bottomHeight - kToolbarHeight;
+
     return Scaffold(
       appBar: AppBar(
-        title: Center(child:  Text(
-          'Admin Dashboard',
-          style: TextStyle(color: Colors.black, fontSize: 40,fontWeight: FontWeight.bold ), // White text for contrast
-        )),
+        title: const Center(
+          child: Text(
+            'Admin Dashboard',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: Icon(
             _isSidePanelOpen ? Icons.arrow_back : Icons.menu,
-            color: Colors.white, // White icon for contrast
+            color: Colors.white,
           ),
           onPressed: _toggleSidePanel,
         ),
         flexibleSpace: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Color.fromARGB(255, 10, 184, 85), // Darker grey again
-                Color.fromARGB(255, 255, 255, 255), // Darker grey again
-                Color.fromARGB(255, 10, 184, 85), // Darker grey again
+                Color.fromARGB(255, 10, 184, 85),
+                Color.fromARGB(255, 255, 255, 255),
+                Color.fromARGB(255, 10, 184, 85),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
           ),
-          child: CustomPaint(
-            child: Container(),
-          ),
+          child: CustomPaint(child: Container()),
         ),
-        elevation: 4.0, // Add shadow for depth
+        elevation: 4.0,
       ),
+      floatingActionButton: _isMessagePanelOpen
+          ? null // Hide FAB when message panel is open
+          : FloatingActionButton(
+        onPressed: _toggleMessagePanel,
+        backgroundColor: Colors.green,
+        child: const Icon(
+          Icons.message,
+          color: Colors.white,
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Stack(
         children: [
-          // Main content (Map view)
+          // Main content (Map + bottom sheet)
           AnimatedContainer(
-            color: Colors.white ,
-            duration: Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 300),
             margin: EdgeInsets.only(
               left: _isSidePanelOpen ? _sidePanelWidth : 0.0,
+              right: _isMessagePanelOpen ? _messagePanelWidth : 0.0,
             ),
+            color: Colors.white,
             child: Column(
               children: [
-                // Map view (using a placeholder image)
-                Expanded(
-                  flex: 3,
+                // Map
+                SizedBox(
+                  height: mapHeight,
                   child: Container(
                     color: Colors.transparent,
-                    padding: EdgeInsets.all(10.0),
+                    padding: const EdgeInsets.only(top: 10.0, left: 10.0, right: 10),
                     child: Center(
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10.0), // Apply corner radius
+                        borderRadius: BorderRadius.circular(10.0),
                         child: Image.asset(
-                          'assets/map image.png', // Path to your asset image
+                          'assets/map image.png',
                           fit: BoxFit.cover,
                           width: double.infinity,
                         ),
-                      )
+                      ),
                     ),
                   ),
                 ),
-                // Bottom section (white space below the map)
-                Expanded(
-                  flex: 1,
+                // Drag handle
+                GestureDetector(
+                  onVerticalDragUpdate: _onVerticalDragUpdate,
+                  onVerticalDragStart: _onVerticalDragStart,
+                  onVerticalDragEnd: _onVerticalDragEnd,
                   child: Container(
+                    height: 10,
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 100,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: _isDragging ? Colors.blue : Colors.grey.shade600,
+                        borderRadius: BorderRadius.circular(2.5),
+                      ),
+                    ),
+                  ),
+                ),
+                // Bottom Sheet
+                SizedBox(
+                  height: _bottomHeight - 10,
+                  child: Container(
+                    padding: const EdgeInsets.only(bottom: 10.0, left: 10.0, right: 10),
                     color: Colors.transparent,
-                    padding: EdgeInsets.only(top: 0.0, bottom: 10.0, right: 10.0, left: 10.0),
-                    child: Center(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10.0), // Apply corner radius
-                          child: Container(
-                            color: Color.fromARGB(255, 168, 255, 130),
-                          ),
-                        )
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10.0),
+                      child: Container(
+                        color: const Color.fromARGB(255, 168, 255, 130),
+                        child: const Center(child: Text("Resizable Bottom Panel")),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          // Side panel with shadow and corner radius
+          // Side panel (left)
           Padding(
-            padding: EdgeInsets.only(top: 10, bottom: 10), // Adds 10px spacing from AppBar and Bottom
+            padding: const EdgeInsets.only(top: 10, bottom: 10),
             child: AnimatedContainer(
-              duration: Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 300),
               width: _isSidePanelOpen ? _sidePanelWidth : 0.0,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.only(
-                  topRight: Radius.circular(10.0), // Rounded top-right corner
-                  bottomRight: Radius.circular(10.0), // Rounded bottom-right corner
+                  topRight: Radius.circular(10.0),
+                  bottomRight: Radius.circular(10.0),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withAlpha(20), // Shadow color
-                    offset: Offset(5, 0), // Shadow offset (X-axis only)
-                    blurRadius: 10.0, // Softness of the shadow
-                    spreadRadius: 2.0, // Spread of the shadow
+                    color: Colors.black12,
+                    offset: Offset(5, 0),
+                    blurRadius: 10.0,
+                    spreadRadius: 2.0,
                   ),
                 ],
               ),
               child: _isSidePanelOpen
                   ? Padding(
-                padding: EdgeInsets.symmetric(vertical: 10), // Inner padding for content
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Column(
                   children: [
                     ListTile(
-                      leading: Icon(Icons.map),
-                      title: Text('Map Options'),
+                      leading: const Icon(Icons.map),
+                      title: const Text('Map Options'),
                       onTap: () {},
                     ),
                     ListTile(
-                      leading: Icon(Icons.settings),
-                      title: Text('Settings'),
+                      leading: const Icon(Icons.settings),
+                      title: const Text('Settings'),
                       onTap: () {},
                     ),
                     ListTile(
-                      leading: Icon(Icons.info),
-                      title: Text('About'),
+                      leading: const Icon(Icons.info),
+                      title: const Text('About'),
                       onTap: () {},
                     ),
                   ],
@@ -163,7 +234,98 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
                   : null,
             ),
-          )
+          ),
+          // Message panel (right)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: _isMessagePanelOpen ? _messagePanelWidth : 0.0,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(10.0),
+                    bottomLeft: Radius.circular(10.0),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      offset: Offset(-5, 0),
+                      blurRadius: 10.0,
+                      spreadRadius: 2.0,
+                    ),
+                  ],
+                ),
+                child: _isMessagePanelOpen
+                    ? Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: _toggleMessagePanel, // Close message panel
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Messages',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: ListView(
+                          children: const [
+                            ListTile(
+                              leading: Icon(Icons.person),
+                              title: Text('Driver 1'),
+                              subtitle: Text('Need more drivers in Zone A'),
+                            ),
+                            ListTile(
+                              leading: Icon(Icons.person),
+                              title: Text('Driver 2'),
+                              subtitle: Text('ETA updated: 5 mins'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Type a message...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.send, color: Colors.green),
+                            onPressed: () {
+                              // Add send message logic here
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+                    : null,
+              ),
+            ),
+          ),
         ],
       ),
     );
