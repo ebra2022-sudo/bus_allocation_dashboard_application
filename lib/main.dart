@@ -29,12 +29,14 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isSidePanelOpen = false;
   bool _isMessagePanelOpen = false;
-  final double _sidePanelWidth = 250.0;
-  final double _messagePanelWidth = 300.0;
+  final double _sidePanelWidth =200.0;
+  final double _messagePanelWidth = 350.0;
 
   double _bottomHeight = 200.0;
   final double _minHeight = 100.0;
   final double _maxHeight = 500.0;
+
+  bool _isHovering = false;
 
   bool _isDragging = false;
   bool? _isDraggingUp;
@@ -153,38 +155,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 // Drag handle
-                GestureDetector(
-                  onVerticalDragUpdate: _onVerticalDragUpdate,
-                  onVerticalDragStart: _onVerticalDragStart,
-                  onVerticalDragEnd: _onVerticalDragEnd,
-                  child: Container(
-                    height: 10,
-                    alignment: Alignment.center,
+                // Drag handle
+
+                MouseRegion(
+                  onEnter: (_) {
+                    setState(() {
+                      _isHovering = true;
+                    });
+                  },
+                  onExit: (_) {
+                    setState(() {
+                      _isHovering = false;
+                    });
+                  },
+                  child: GestureDetector(
+                    onVerticalDragUpdate: _onVerticalDragUpdate,
+                    onVerticalDragStart: _onVerticalDragStart,
+                    onVerticalDragEnd: _onVerticalDragEnd,
                     child: Container(
-                      width: 100,
-                      height: 5,
-                      decoration: BoxDecoration(
+                      height: 20, // Responsive height from previous updates
+                      alignment: Alignment.center,
+                      child:  _isDragging && _isDraggingUp == true
+                          ? Icon(
+                        Icons.arrow_upward,
+                        size:  18.0, // Responsive icon size
                         color: _isDragging ? Colors.blue : Colors.grey.shade600,
-                        borderRadius: BorderRadius.circular(2.5),
+                      ):
+                      _isDragging && _isDraggingUp == false
+                          ? Icon(
+                        Icons.arrow_downward,
+                        size:  18.0, // Responsive icon size
+                        color: _isDragging ? Colors.blue : Colors.grey.shade600,
+                      )
+                          : Container(
+                        width: 80, // Responsive width from previous updates
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color:  _isHovering ? Colors.blue : Colors.green,
+                          borderRadius: BorderRadius.circular(2.5),
+                        ),
                       ),
                     ),
                   ),
                 ),
+
                 // Bottom Sheet
-                SizedBox(
-                  height: _bottomHeight - 10,
-                  child: Container(
-                    padding: const EdgeInsets.only(bottom: 10.0, left: 10.0, right: 10),
-                    color: Colors.transparent,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10.0),
+                Expanded(
+                    child:SizedBox(
+                      height: _bottomHeight - 10,
                       child: Container(
-                        color: const Color.fromARGB(255, 168, 255, 130),
-                        child: const Center(child: Text("Resizable Bottom Panel")),
+                        padding: const EdgeInsets.only(bottom: 10.0, left: 10.0, right: 10),
+                        color: Colors.transparent,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10.0),
+                          child: Container(
+                            color: const Color.fromARGB(255, 168, 255, 130),
+                            child: const Center(child: Text("Resizable Bottom Panel")),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                )
               ],
             ),
           ),
