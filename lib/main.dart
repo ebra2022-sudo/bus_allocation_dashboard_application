@@ -14,11 +14,18 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.green,
       ),
-      home: const DashboardScreen(),
+      initialRoute: '/dashboard',
+      routes: {
+        '/dashboard': (context) => const DashboardScreen(),
+        '/settings': (context) => const SettingsScreen(),
+        '/map-options': (context) => const MapOptionsScreen(),
+        '/about': (context) => const AboutScreen(),
+      },
     );
   }
 }
 
+// Dashboard Screen
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -29,7 +36,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isSidePanelOpen = false;
   bool _isMessagePanelOpen = false;
-  final double _sidePanelWidth =200.0;
+  final double _sidePanelWidth = 200.0;
   final double _messagePanelWidth = 350.0;
 
   double _bottomHeight = 200.0;
@@ -37,7 +44,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final double _maxHeight = 500.0;
 
   bool _isHovering = false;
-
   bool _isDragging = false;
   bool? _isDraggingUp;
 
@@ -72,7 +78,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _isDragging = false;
     });
   }
-
   @override
   Widget build(BuildContext context) {
     final double totalHeight = MediaQuery.of(context).size.height;
@@ -109,24 +114,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               end: Alignment.bottomRight,
             ),
           ),
-          child: CustomPaint(child: Container()),
         ),
         elevation: 4.0,
       ),
       floatingActionButton: _isMessagePanelOpen
-          ? null // Hide FAB when message panel is open
+          ? null
           : FloatingActionButton(
         onPressed: _toggleMessagePanel,
+        hoverColor: Colors.blueAccent,
         backgroundColor: Colors.green,
-        child: const Icon(
-          Icons.message,
-          color: Colors.white,
-        ),
+        child: const Icon(Icons.message, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Stack(
         children: [
-          // Main content (Map + bottom sheet)
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             margin: EdgeInsets.only(
@@ -136,7 +137,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             color: Colors.white,
             child: Column(
               children: [
-                // Map
                 SizedBox(
                   height: mapHeight,
                   child: Container(
@@ -154,72 +154,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
-                // Drag handle
-                // Drag handle
-
                 MouseRegion(
-                  onEnter: (_) {
-                    setState(() {
-                      _isHovering = true;
-                    });
-                  },
-                  onExit: (_) {
-                    setState(() {
-                      _isHovering = false;
-                    });
-                  },
+                  onEnter: (_) => setState(() => _isHovering = true),
+                  onExit: (_) => setState(() => _isHovering = false),
                   child: GestureDetector(
                     onVerticalDragUpdate: _onVerticalDragUpdate,
                     onVerticalDragStart: _onVerticalDragStart,
                     onVerticalDragEnd: _onVerticalDragEnd,
                     child: Container(
-                      height: 20, // Responsive height from previous updates
+                      height: 20,
                       alignment: Alignment.center,
-                      child:  _isDragging && _isDraggingUp == true
+                      child: _isDragging && _isDraggingUp == true
                           ? Icon(
                         Icons.arrow_upward,
-                        size:  18.0, // Responsive icon size
+                        size: 18.0,
                         color: _isDragging ? Colors.blue : Colors.grey.shade600,
-                      ):
-                      _isDragging && _isDraggingUp == false
+                      )
+                          : _isDragging && _isDraggingUp == false
                           ? Icon(
                         Icons.arrow_downward,
-                        size:  18.0, // Responsive icon size
+                        size: 18.0,
                         color: _isDragging ? Colors.blue : Colors.grey.shade600,
                       )
                           : Container(
-                        width: 80, // Responsive width from previous updates
+                        width: 80,
                         height: 8,
                         decoration: BoxDecoration(
-                          color:  _isHovering ? Colors.blue : Colors.green,
+                          color: _isHovering ? Colors.blue : Colors.green,
                           borderRadius: BorderRadius.circular(2.5),
                         ),
                       ),
                     ),
                   ),
                 ),
-
-                // Bottom Sheet
                 Expanded(
-                    child:SizedBox(
-                      height: _bottomHeight - 10,
-                      child: Container(
-                        padding: const EdgeInsets.only(bottom: 10.0, left: 10.0, right: 10),
-                        color: Colors.transparent,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10.0),
-                          child: Container(
-                            color: const Color.fromARGB(255, 168, 255, 130),
-                            child: const Center(child: Text("Resizable Bottom Panel")),
-                          ),
+                  child: SizedBox(
+                    height: _bottomHeight - 10,
+                    child: Container(
+                      padding: const EdgeInsets.only(top: 10.0, left: 10.0, right: 10),
+                      color: Colors.transparent,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10.0),
+                        child: Container(
+                          color: const Color.fromARGB(255, 168, 255, 130),
+                          child: const Center(child: Text("Resizable Bottom Panel")),
                         ),
                       ),
                     ),
+                  ),
                 )
               ],
             ),
           ),
-          // Side panel (left)
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 10),
             child: AnimatedContainer(
@@ -248,17 +234,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ListTile(
                       leading: const Icon(Icons.map),
                       title: const Text('Map Options'),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.pushNamed(context, '/map-options');
+                        _toggleSidePanel(); // Close panel after navigation
+                      },
                     ),
                     ListTile(
                       leading: const Icon(Icons.settings),
                       title: const Text('Settings'),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.pushNamed(context, '/settings');
+                        _toggleSidePanel();
+                      },
                     ),
                     ListTile(
                       leading: const Icon(Icons.info),
                       title: const Text('About'),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.pushNamed(context, '/about');
+                        _toggleSidePanel();
+                      },
                     ),
                   ],
                 ),
@@ -266,7 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   : null,
             ),
           ),
-          // Message panel (right)
+          // Message panel remains unchanged
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
@@ -299,14 +294,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.arrow_back),
-                            onPressed: _toggleMessagePanel, // Close message panel
+                            onPressed: _toggleMessagePanel,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Messages',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                          const Flexible(
+                            child: Text(
+                              'Messages',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
@@ -314,18 +312,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 16),
                       Expanded(
                         child: ListView(
-                          children: const [
-                            ListTile(
-                              leading: Icon(Icons.person),
-                              title: Text('Driver 1'),
-                              subtitle: Text('Need more drivers in Zone A'),
-                            ),
-                            ListTile(
-                              leading: Icon(Icons.person),
-                              title: Text('Driver 2'),
-                              subtitle: Text('ETA updated: 5 mins'),
-                            ),
-                          ],
+                          children: const [],
                         ),
                       ),
                       const Divider(),
@@ -344,9 +331,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(width: 8),
                           IconButton(
                             icon: const Icon(Icons.send, color: Colors.green),
-                            onPressed: () {
-                              // Add send message logic here
-                            },
+                            onPressed: () {},
                           ),
                         ],
                       ),
@@ -362,3 +347,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
+
+// Settings Screen
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.green,
+        leading: IconButton(onPressed: () => {}, icon: Icon(Icons.arrow_back)),
+      ),
+      body: const Center(
+        child: Text(
+          'Settings Screen',
+          style: TextStyle(fontSize: 24),
+        ),
+      ),
+    );
+  }
+}
+
