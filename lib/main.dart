@@ -1,3 +1,4 @@
+import 'package:bus_allocation_dashboard_application/map_view.dart';
 import 'package:bus_allocation_dashboard_application/setting_screen.dart';
 import 'package:flutter/material.dart';
 import 'about_screen.dart';
@@ -39,7 +40,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isSidePanelOpen = false;
   bool _isMessagePanelOpen = false;
-  final double _sidePanelWidth = 200.0;
+  final double _sidePanelWidth = 350.0;
   final double _messagePanelWidth = 350.0;
 
   double _bottomHeight = 200.0;
@@ -49,6 +50,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isHovering = false;
   bool _isDragging = false;
   bool? _isDraggingUp;
+
+
+  final TextEditingController _startController = TextEditingController();
+  final TextEditingController _endController = TextEditingController();
 
   void _toggleSidePanel() {
     setState(() {
@@ -148,11 +153,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Center(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10.0),
-                        child: Image.asset(
-                          'assets/map image.png',
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
+                        child: MapView()
                       ),
                     ),
                   ),
@@ -258,6 +259,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _toggleSidePanel();
                       },
                     ),
+                    SizedBox(
+                      height: 300.0,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _startController,
+                              decoration: const InputDecoration(
+                                labelText: 'Start Location',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _endController,
+                              decoration: const InputDecoration(
+                                labelText: 'End Location',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () => {},
+                            child: const Text('Plot Route'),
+                          ),
+
+                        ],
+                      ),
+                    )
                   ],
                 ),
               ) : null,
