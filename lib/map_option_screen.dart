@@ -13,7 +13,7 @@ class MapOptionsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Map Options'),
         backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {}, icon: Icon(Icons.arrow_back)),
+        leading: IconButton(onPressed: () => {Navigator.pop(context)}, icon: Icon(Icons.arrow_back)),
       ),
       body: const Center(
         child: Text(

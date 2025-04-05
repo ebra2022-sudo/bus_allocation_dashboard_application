@@ -260,8 +260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
-              )
-                  : null,
+              ) : null,
             ),
           ),
           // Message panel remains unchanged
@@ -340,8 +339,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                   ),
-                )
-                    : null,
+                ): null,
               ),
             ),
           ),
