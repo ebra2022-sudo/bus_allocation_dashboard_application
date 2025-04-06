@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-
-
-
 // About Screen
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -13,15 +10,14 @@ class AboutScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('About'),
         backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {Navigator.pop(context)}, icon: Icon(Icons.arrow_back)),
+        leading: IconButton(
+          onPressed: () => {Navigator.pop(context)},
+          icon: Icon(Icons.arrow_back),
+        ),
       ),
       body: const Center(
-        child: Text(
-          'About Screen',
-          style: TextStyle(fontSize: 24),
-        ),
+        child: Text('About Screen', style: TextStyle(fontSize: 24)),
       ),
     );
   }
 }
-

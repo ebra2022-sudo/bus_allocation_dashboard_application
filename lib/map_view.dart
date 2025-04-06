@@ -5,8 +5,25 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 
+//9.032286, 38.763561 // 4 kilo
+
+// 9.034743, 38.777151 // kebena
+
+//9.047464, 38.761687 // 6 kilo
+
+// 9.035831, 38.752432 // piasa
+
 class MapView extends StatefulWidget {
-  const MapView({super.key});
+  final String startPoint;
+  final String endPoint;
+  final VoidCallback onSearch; // Function passed from parent to trigger search
+
+  const MapView({
+    super.key,
+    required this.startPoint,
+    required this.endPoint,
+    required this.onSearch,
+  });
 
   @override
   _MapViewState createState() => _MapViewState();
@@ -19,15 +36,16 @@ class _MapViewState extends State<MapView> {
   LatLng? _currentLocation; // Store current device location
   List<LatLng> _routePoints = [];
 
-  final TextEditingController _startController = TextEditingController();
-  final TextEditingController _endController = TextEditingController();
-
   // Your Mapbox access token
   final String _mapboxAccessToken =
       'pk.eyJ1IjoibXVoYTIwMjQiLCJhIjoiY202M21neXNtMWFldjJpc2J4ZWNoc3hkbCJ9.-pNf8Yml7UJNDzTPtFlssA';
 
   // Initial center point (New York)
   final LatLng _initialCenter = const LatLng(9.040196, 38.761931);
+  final _artKiloBusStation = const LatLng(9.032286, 38.763561);
+  final _sidestKiloBusStation = const LatLng(9.047464, 38.761687);
+  final _piasaBusStation = const LatLng(9.035831, 38.752432);
+  final _kebenaBusStation = const LatLng(9.034743, 38.777151);
 
   // Search for a location using Mapbox Geocoding API
   Future<LatLng?> _searchLocation(String query) async {
@@ -40,7 +58,8 @@ class _MapViewState extends State<MapView> {
       final data = json.decode(response.body);
       final features = data['features'] as List<dynamic>;
       if (features.isNotEmpty) {
-        final coordinates = features[0]['geometry']['coordinates'] as List<dynamic>;
+        final coordinates =
+            features[0]['geometry']['coordinates'] as List<dynamic>;
         return LatLng(coordinates[1] as double, coordinates[0] as double);
       }
     }
@@ -56,14 +75,20 @@ class _MapViewState extends State<MapView> {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      final route = data['routes'][0]['geometry']['coordinates'] as List<dynamic>;
+      final route =
+          data['routes'][0]['geometry']['coordinates'] as List<dynamic>;
       setState(() {
-        _routePoints = route.map((coord) => LatLng(coord[1] as double, coord[0] as double)).toList();
+        _routePoints =
+            route
+                .map((coord) => LatLng(coord[1] as double, coord[0] as double))
+                .toList();
       });
       _fitBounds();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to fetch route: ${response.statusCode}')),
+        SnackBar(
+          content: Text('Failed to fetch route: ${response.statusCode}'),
+        ),
       );
     }
   }
@@ -71,7 +96,11 @@ class _MapViewState extends State<MapView> {
   // Fit map bounds to show the route
   void _fitBounds() {
     if (_startPoint != null && _endPoint != null) {
-      final bounds = LatLngBounds.fromPoints([_startPoint!, _endPoint!, ..._routePoints]);
+      final bounds = LatLngBounds.fromPoints([
+        _startPoint!,
+        _endPoint!,
+        ..._routePoints,
+      ]);
       final cameraFit = CameraFit.bounds(
         bounds: bounds,
         padding: const EdgeInsets.all(50),
@@ -81,31 +110,13 @@ class _MapViewState extends State<MapView> {
   }
 
   // Handle search and route plotting
-  void onSearchPressed() async {
-    final startQuery = _startController.text.trim();
-    final endQuery = _endController.text.trim();
-
-    if (startQuery.isNotEmpty && endQuery.isNotEmpty) {
-      final start = await _searchLocation(startQuery);
-      final end = await _searchLocation(endQuery);
-
-      if (start != null && end != null) {
-        setState(() {
-          _startPoint = start;
-          _endPoint = end;
-          _routePoints.clear();
-        });
-        await _fetchRoute(start, end);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not find one or both locations')),
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both start and end locations')),
-      );
-    }
+  void _onSearchPressed(LatLng start, LatLng end) async {
+    setState(() {
+      _startPoint = start;
+      _endPoint = end;
+      _routePoints.clear();
+    });
+    await _fetchRoute(start, end);
   }
 
   // Get current device location
@@ -113,13 +124,16 @@ class _MapViewState extends State<MapView> {
     setState(() {
       _currentLocation = LatLng(9.040196, 38.761931);
     });
-
   }
+
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     _getCurrentLocation();
+    _onSearchPressed(_sidestKiloBusStation, _artKiloBusStation);
+    _onSearchPressed(_sidestKiloBusStation, _piasaBusStation);
+    _onSearchPressed(_sidestKiloBusStation, _kebenaBusStation);
   }
 
   // Animate map to current location with bearing
@@ -148,34 +162,59 @@ class _MapViewState extends State<MapView> {
                 initialZoom: 10.0,
                 initialRotation: 0.0, // Initial bearing
                 interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all, // Enable all interactions for desktop
+                  flags:
+                      InteractiveFlag
+                          .all, // Enable all interactions for desktop
                 ),
               ),
               children: [
                 TileLayer(
                   urlTemplate:
-                  'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$_mapboxAccessToken',
-                  additionalOptions: {
-                    'accessToken': _mapboxAccessToken,
-                  },
+                      'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$_mapboxAccessToken',
+                  additionalOptions: {'accessToken': _mapboxAccessToken},
                 ),
                 MarkerLayer(
                   markers: [
-                    if (_startPoint != null)
-                      Marker(
-                        point: _startPoint!,
-                        child: const Icon(Icons.location_pin, color: Colors.blue, size: 40),
+                    // piasa bus station marker
+                    Marker(
+                      point: _piasaBusStation,
+                      child: const Icon(
+                        Icons.directions_bus_sharp,
+                        color: Colors.red,
+                        size: 40,
                       ),
-                    if (_endPoint != null)
-                      Marker(
-                        point: _endPoint!,
-                        child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                    ),
+
+                    // sidest kilo bus station marker
+                    Marker(
+                      point: _sidestKiloBusStation,
+                      child: const Icon(
+                        Icons.directions_bus_sharp,
+                        color: Colors.red,
+                        size: 40,
                       ),
-                    if (_currentLocation != null)
-                      Marker(
-                        point: _currentLocation!,
-                        child: const Icon(Icons.location_pin, color: Colors.green, size: 40),
+                    ),
+
+                    // 4 kilo bus station marker
+                    Marker(
+                      point: _artKiloBusStation,
+                      child: const Icon(
+                        Icons.directions_bus_sharp,
+                        color: Colors.red,
+                        size: 40,
                       ),
+                    ),
+
+                    // kebena bus station marker
+
+                    Marker(
+                      point: _kebenaBusStation,
+                      child: const Icon(
+                        Icons.directions_bus_sharp,
+                        color: Colors.red,
+                        size: 40,
+                      ),
+                    ),
                   ],
                 ),
                 PolylineLayer(
@@ -195,16 +234,9 @@ class _MapViewState extends State<MapView> {
       ),
       floatingActionButton: IconButton(
         onPressed: () => _animateToCurrentLocation(0.0),
-        icon:  const Icon(Icons.my_location, color: Colors.green),
+        icon: const Icon(Icons.my_location, color: Colors.green),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
-  }
-
-  @override
-  void dispose() {
-    _startController.dispose();
-    _endController.dispose();
-    super.dispose();
   }
 }

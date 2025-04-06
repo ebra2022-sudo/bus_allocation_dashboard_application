@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 // Settings Screen
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -11,13 +10,13 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Settings'),
         backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {Navigator.pop(context)}, icon: Icon(Icons.arrow_back)),
+        leading: IconButton(
+          onPressed: () => {Navigator.pop(context)},
+          icon: Icon(Icons.arrow_back),
+        ),
       ),
       body: const Center(
-        child: Text(
-          'Settings Screen',
-          style: TextStyle(fontSize: 24),
-        ),
+        child: Text('Settings Screen', style: TextStyle(fontSize: 24)),
       ),
     );
   }

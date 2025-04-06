@@ -15,15 +15,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Admin Dashboard',
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-      ),
+      theme: ThemeData(primarySwatch: Colors.green),
       initialRoute: '/dashboard',
       routes: {
         '/dashboard': (context) => const DashboardScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/map-options': (context) => const MapOptionsScreen(),
-        '/about': (context) => const AboutScreen()
+        '/about': (context) => const AboutScreen(),
       },
     );
   }
@@ -51,9 +49,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isDragging = false;
   bool? _isDraggingUp;
 
-
   final TextEditingController _startController = TextEditingController();
   final TextEditingController _endController = TextEditingController();
+
+  String startPoint = '';
+  String endPoint = '';
+
+  void _triggerSearch() {
+    setState(() {
+      startPoint = _startController.text;
+      endPoint = _endController.text;
+    });
+  }
 
   void _toggleSidePanel() {
     setState(() {
@@ -86,6 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _isDragging = false;
     });
   }
+
   @override
   Widget build(BuildContext context) {
     final double totalHeight = MediaQuery.of(context).size.height;
@@ -125,14 +133,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         elevation: 4.0,
       ),
-      floatingActionButton: _isMessagePanelOpen
-          ? null
-          : FloatingActionButton(
-        onPressed: _toggleMessagePanel,
-        hoverColor: Colors.blueAccent,
-        backgroundColor: Colors.green,
-        child: const Icon(Icons.message, color: Colors.white),
-      ),
+      floatingActionButton:
+          _isMessagePanelOpen
+              ? null
+              : FloatingActionButton(
+                onPressed: _toggleMessagePanel,
+                hoverColor: Colors.blueAccent,
+                backgroundColor: Colors.green,
+                child: const Icon(Icons.message, color: Colors.white),
+              ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Stack(
         children: [
@@ -149,11 +158,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   height: mapHeight,
                   child: Container(
                     color: Colors.transparent,
-                    padding: const EdgeInsets.only(top: 10.0, left: 10.0, right: 10),
+                    padding: const EdgeInsets.only(
+                      top: 10.0,
+                      left: 10.0,
+                      right: 10,
+                    ),
                     child: Center(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10.0),
-                        child: MapView()
+                        child: MapView(
+                          startPoint: startPoint,
+                          endPoint: endPoint,
+                          onSearch: () {},
+                        ),
                       ),
                     ),
                   ),
@@ -168,26 +185,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Container(
                       height: 20,
                       alignment: Alignment.center,
-                      child: _isDragging && _isDraggingUp == true
-                          ? Icon(
-                        Icons.arrow_upward,
-                        size: 18.0,
-                        color: _isDragging ? Colors.blue : Colors.grey.shade600,
-                      )
-                          : _isDragging && _isDraggingUp == false
-                          ? Icon(
-                        Icons.arrow_downward,
-                        size: 18.0,
-                        color: _isDragging ? Colors.blue : Colors.grey.shade600,
-                      )
-                          : Container(
-                        width: 80,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _isHovering ? Colors.blue : Colors.green,
-                          borderRadius: BorderRadius.circular(2.5),
-                        ),
-                      ),
+                      child:
+                          _isDragging && _isDraggingUp == true
+                              ? Icon(
+                                Icons.arrow_upward,
+                                size: 18.0,
+                                color:
+                                    _isDragging
+                                        ? Colors.blue
+                                        : Colors.grey.shade600,
+                              )
+                              : _isDragging && _isDraggingUp == false
+                              ? Icon(
+                                Icons.arrow_downward,
+                                size: 18.0,
+                                color:
+                                    _isDragging
+                                        ? Colors.blue
+                                        : Colors.grey.shade600,
+                              )
+                              : Container(
+                                width: 80,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color:
+                                      _isHovering ? Colors.blue : Colors.green,
+                                  borderRadius: BorderRadius.circular(2.5),
+                                ),
+                              ),
                     ),
                   ),
                 ),
@@ -195,18 +220,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: SizedBox(
                     height: _bottomHeight - 10,
                     child: Container(
-                      padding: const EdgeInsets.only(top: 10.0, left: 10.0, right: 10),
+                      padding: const EdgeInsets.only(
+                        top: 10.0,
+                        left: 10.0,
+                        right: 10,
+                      ),
                       color: Colors.transparent,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10.0),
                         child: Container(
                           color: const Color.fromARGB(255, 168, 255, 130),
-                          child: const Center(child: Text("Resizable Bottom Panel")),
+                          child: const Center(
+                            child: Text("Resizable Bottom Panel"),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -230,70 +261,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              child: _isSidePanelOpen
-                  ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.map),
-                      title: const Text('Map Options'),
-                      onTap: () {
-                        Navigator.pushNamed(context, '/map-options');
-                        _toggleSidePanel(); // Close panel after navigation
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.settings),
-                      title: const Text('Settings'),
-                      onTap: () {
-                        Navigator.pushNamed(context, '/settings');
-                        _toggleSidePanel();
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.info),
-                      title: const Text('About'),
-                      onTap: () {
-                        Navigator.pushNamed(context, '/about');
-                        _toggleSidePanel();
-                      },
-                    ),
-                    SizedBox(
-                      height: 300.0,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _startController,
-                              decoration: const InputDecoration(
-                                labelText: 'Start Location',
-                                border: OutlineInputBorder(),
-                              ),
+              child:
+                  _isSidePanelOpen
+                      ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.map),
+                              title: const Text('Map Options'),
+                              onTap: () {
+                                Navigator.pushNamed(context, '/map-options');
+                                _toggleSidePanel(); // Close panel after navigation
+                              },
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _endController,
-                              decoration: const InputDecoration(
-                                labelText: 'End Location',
-                                border: OutlineInputBorder(),
-                              ),
+                            ListTile(
+                              leading: const Icon(Icons.settings),
+                              title: const Text('Settings'),
+                              onTap: () {
+                                Navigator.pushNamed(context, '/settings');
+                                _toggleSidePanel();
+                              },
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () => {},
-                            child: const Text('Plot Route'),
-                          ),
+                            ListTile(
+                              leading: const Icon(Icons.info),
+                              title: const Text('About'),
+                              onTap: () {
+                                Navigator.pushNamed(context, '/about');
+                                _toggleSidePanel();
+                              },
+                            ),
+                            SizedBox(
+                              height: 200.0,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 20.0),
+                                child: Column(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    TextField(
+                                      controller: _startController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Start Location',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                    ),
 
-                        ],
-                      ),
-                    )
-                  ],
-                ),
-              ) : null,
+                                    const SizedBox(width: 8),
+                                    TextField(
+                                      controller: _endController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'End Location',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      onPressed: _triggerSearch,
+                                      child: const Text('Plot Route'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : null,
             ),
           ),
           // Message panel remains unchanged
@@ -319,65 +355,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
-                child: _isMessagePanelOpen
-                    ? Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: _toggleMessagePanel,
-                          ),
-                          const SizedBox(width: 8),
-                          const Flexible(
-                            child: Text(
-                              'Messages',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                child:
+                    _isMessagePanelOpen
+                        ? Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_back),
+                                    onPressed: _toggleMessagePanel,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Flexible(
+                                    child: Text(
+                                      'Messages',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: ListView(
-                          children: const [],
-                        ),
-                      ),
-                      const Divider(),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Type a message...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
+                              const SizedBox(height: 16),
+                              Expanded(child: ListView(children: const [])),
+                              const Divider(),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      decoration: InputDecoration(
+                                        hintText: 'Type a message...',
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.send,
+                                      color: Colors.green,
+                                    ),
+                                    onPressed: () {},
+                                  ),
+                                ],
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.send, color: Colors.green),
-                            onPressed: () {},
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ): null,
+                        )
+                        : null,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _startController.dispose();
+    _endController.dispose();
+    super.dispose();
   }
 }

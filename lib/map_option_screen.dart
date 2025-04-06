@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-
-
-
 // Map Options Screen
 class MapOptionsScreen extends StatelessWidget {
   const MapOptionsScreen({super.key});
@@ -13,13 +10,13 @@ class MapOptionsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Map Options'),
         backgroundColor: Colors.green,
-        leading: IconButton(onPressed: () => {Navigator.pop(context)}, icon: Icon(Icons.arrow_back)),
+        leading: IconButton(
+          onPressed: () => {Navigator.pop(context)},
+          icon: Icon(Icons.arrow_back),
+        ),
       ),
       body: const Center(
-        child: Text(
-          'Map Options Screen',
-          style: TextStyle(fontSize: 24),
-        ),
+        child: Text('Map Options Screen', style: TextStyle(fontSize: 24)),
       ),
     );
   }
