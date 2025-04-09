@@ -34,7 +34,7 @@ class _MapViewState extends State<MapView> {
   List<LatLng> _routePoints3 = [];
 
   // Number of buses for each route
-  final int n1 = 1; // Sidest Kilo to Piasa
+  final int n1 = 2; // Sidest Kilo to Piasa
   final int n2 = 1; // Sidest Kilo to 4 Kilo
   final int n3 = 4; // Sidest Kilo to Kebena
 
@@ -156,6 +156,8 @@ class _MapViewState extends State<MapView> {
     }
   }
 
+
+  // desgn the desing the
   void _fitBounds(
     LatLng startPoint,
     LatLng endPoint,
@@ -179,6 +181,7 @@ class _MapViewState extends State<MapView> {
     });
   }
 
+  // to animate the current location
   void _animateToCurrentLocation(double bearing) {
     if (_currentLocation != null) {
       _mapController.moveAndRotate(_currentLocation!, 15.5, bearing);
@@ -259,6 +262,7 @@ class _MapViewState extends State<MapView> {
     });
   }
 
+  // to geet the current location of the
   double _calculateAngle(LatLng p1, LatLng p2, LatLng p3) {
     final double v1x = p2.longitude - p1.longitude;
     final double v1y = p2.latitude - p1.latitude;

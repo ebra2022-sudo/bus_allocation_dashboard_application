@@ -1,11 +1,10 @@
 import 'package:bus_allocation_dashboard_application/map_view.dart';
 import 'package:bus_allocation_dashboard_application/setting_screen.dart';
+import 'package:bus_allocation_dashboard_application/system_data_analytic.dart';
 import 'package:flutter/material.dart';
 import 'about_screen.dart';
 import 'map_option_screen.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'dart:math';
-import 'dart:async';
+
 
 void main() {
   runApp(MyApp());
@@ -44,9 +43,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final double _sidePanelWidth = 350.0;
   final double _messagePanelWidth = 350.0;
 
-  double _bottomHeight = 200.0;
-  final double _minHeight = 100.0;
-  final double _maxHeight = 500.0;
+  double _bottomHeight = 240.0;
+  final double _minHeight = 240.0;
+  final double _maxHeight = 600.0;
 
   bool _isHovering = false;
   bool _isDragging = false;
@@ -244,7 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         borderRadius: BorderRadius.circular(10.0),
                         child: Container(
                           color: const Color.fromARGB(255, 168, 255, 130),
-                          child: const Center(child: null),
+                          child: const Center(child: StockAnalyticsPage()),
                         ),
                       ),
                     ),
