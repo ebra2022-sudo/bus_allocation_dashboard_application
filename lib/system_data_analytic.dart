@@ -113,7 +113,7 @@ class _StockAnalyticsPageState extends State<StockAnalyticsPage> {
       default: return 48;
     }
   }
-
+  // design
   DateTime getTimeForFrame(DateTime now, int i) {
     switch (selectedTimeFrame) {
       case 'Hourly':
@@ -130,6 +130,9 @@ class _StockAnalyticsPageState extends State<StockAnalyticsPage> {
         return now.subtract(Duration(hours: i));
     }
   }
+
+  // get axis labal
+
 
   String getAxisLabel(double value) {
     int index = value.toInt();
@@ -178,6 +181,9 @@ class _StockAnalyticsPageState extends State<StockAnalyticsPage> {
       Colors.lime,
       Colors.amber,
     ];
+
+
+    // colum of the  deisn ghe sat
 
     return Column(
       children: [
@@ -239,6 +245,7 @@ class _StockAnalyticsPageState extends State<StockAnalyticsPage> {
             ),
           ],
         ),
+        // sample of the current vlaue of the  deiang he
         Expanded(
           child: Padding(
             padding: EdgeInsets.all(8.0),

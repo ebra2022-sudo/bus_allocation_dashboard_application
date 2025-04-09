@@ -491,6 +491,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // sample the current vlaue
+
   @override
   void dispose() {
     _startController.dispose();
