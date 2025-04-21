@@ -130,10 +130,6 @@ class _StockAnalyticsPageState extends State<StockAnalyticsPage> {
         return now.subtract(Duration(hours: i));
     }
   }
-
-  // get axis labal
-
-
   String getAxisLabel(double value) {
     int index = value.toInt();
     if (index >= 0 && index < routeData[0].length) {

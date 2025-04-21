@@ -11,8 +11,7 @@ class MapView extends StatefulWidget {
   final String startPoint;
   final String endPoint;
   final VoidCallback onSearch;
-  final Function(List<Map<String, dynamic>>)?
-  onBusSpeedsUpdated; // Callback for bus speeds
+  final Function(List<Map<String, dynamic>>)? onBusSpeedsUpdated;
 
   const MapView({
     super.key,
@@ -29,16 +28,30 @@ class MapView extends StatefulWidget {
 class _MapViewState extends State<MapView> {
   final MapController _mapController = MapController();
   LatLng? _currentLocation;
+
+  // Route options for each path (Sidest Kilo to Piassa, 4 Kilo, Kebena)
+  List<List<LatLng>> _routeOptions1 = [];
+  List<List<LatLng>> _routeOptions2 = [];
+  List<List<LatLng>> _routeOptions3 = [];
+
+  // Congestion levels for each route option
+  List<List<String>> _congestionOptions1 = [];
+  List<List<String>> _congestionOptions2 = [];
+  List<List<String>> _congestionOptions3 = [];
+
+  // Selected route for each path (least congested)
   List<LatLng> _routePoints1 = [];
   List<LatLng> _routePoints2 = [];
   List<LatLng> _routePoints3 = [];
 
-  // Number of buses for each route
+  List<String> _congestionLevels1 = [];
+  List<String> _congestionLevels2 = [];
+  List<String> _congestionLevels3 = [];
+
   final int n1 = 2; // Sidest Kilo to Piasa
   final int n2 = 1; // Sidest Kilo to 4 Kilo
   final int n3 = 4; // Sidest Kilo to Kebena
 
-  // Bus positions, directions, progress, indices, and speeds
   List<LatLng> _busPositions1 = [];
   List<LatLng> _busPositions2 = [];
   List<LatLng> _busPositions3 = [];
@@ -51,11 +64,12 @@ class _MapViewState extends State<MapView> {
   List<int> _busIndices1 = [];
   List<int> _busIndices2 = [];
   List<int> _busIndices3 = [];
-  List<double> _busSpeeds1 = []; // Individual speeds for route 1
-  List<double> _busSpeeds2 = []; // Individual speeds for route 2
-  List<double> _busSpeeds3 = []; // Individual speeds for route 3
+  List<double> _busSpeeds1 = [];
+  List<double> _busSpeeds2 = [];
+  List<double> _busSpeeds3 = [];
 
   Timer? _simulationTimer;
+  Timer? _trafficUpdateTimer;
 
   final String _mapboxAccessToken =
       'pk.eyJ1IjoibXVoYTIwMjQiLCJhIjoiY202M21neXNtMWFldjJpc2J4ZWNoc3hkbCJ9.-pNf8Yml7UJNDzTPtFlssA';
@@ -66,11 +80,152 @@ class _MapViewState extends State<MapView> {
   static const LatLng _piasaBusStation = LatLng(9.035831, 38.752432);
   static const LatLng _kebenaBusStation = LatLng(9.034743, 38.777151);
 
+  final GlobalKey _trafficTileLayerKey = GlobalKey();
+
+  Color _getCongestionColor(String congestionLevel) {
+    switch (congestionLevel.toLowerCase()) {
+      case 'low':
+        return Colors.green;
+      case 'moderate':
+        return Colors.yellow;
+      case 'heavy':
+      case 'severe':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Calculate average congestion score for a route
+  double _calculateCongestionScore(List<String> congestionLevels) {
+    if (congestionLevels.isEmpty) return double.infinity;
+
+    double totalScore = 0;
+    for (var level in congestionLevels) {
+      switch (level.toLowerCase()) {
+        case 'low':
+          totalScore += 1;
+          break;
+        case 'moderate':
+          totalScore += 2;
+          break;
+        case 'heavy':
+          totalScore += 3;
+          break;
+        case 'severe':
+          totalScore += 4;
+          break;
+        default:
+          totalScore += 0;
+      }
+    }
+    return totalScore / congestionLevels.length;
+  }
+
+  // Select the least congested route from the options
+  void _selectLeastCongestedRoute(int routeIndex) {
+    List<List<LatLng>> routeOptions;
+    List<List<String>> congestionOptions;
+
+    switch (routeIndex) {
+      case 0:
+        routeOptions = _routeOptions1;
+        congestionOptions = _congestionOptions1;
+        break;
+      case 1:
+        routeOptions = _routeOptions2;
+        congestionOptions = _congestionOptions2;
+        break;
+      case 2:
+        routeOptions = _routeOptions3;
+        congestionOptions = _congestionOptions3;
+        break;
+      default:
+        return;
+    }
+
+    if (routeOptions.isEmpty) return;
+
+    int leastCongestedIndex = 0;
+    double minScore = double.infinity;
+
+    for (int i = 0; i < routeOptions.length; i++) {
+      double score = _calculateCongestionScore(congestionOptions[i]);
+      if (score < minScore) {
+        minScore = score;
+        leastCongestedIndex = i;
+      }
+    }
+
+    setState(() {
+      switch (routeIndex) {
+        case 0:
+          _routePoints1 = routeOptions[leastCongestedIndex];
+          _congestionLevels1 = congestionOptions[leastCongestedIndex];
+          // Update bus indices to match new route length
+          for (int j = 0; j < _busIndices1.length; j++) {
+            _busIndices1[j] = (_busIndices1[j] * (_routePoints1.length / (_routePoints1.length + 1))).round().clamp(0, _routePoints1.length - 2);
+          }
+          break;
+        case 1:
+          _routePoints2 = routeOptions[leastCongestedIndex];
+          _congestionLevels2 = congestionOptions[leastCongestedIndex];
+          for (int j = 0; j < _busIndices2.length; j++) {
+            _busIndices2[j] = (_busIndices2[j] * (_routePoints2.length / (_routePoints2.length + 1))).round().clamp(0, _routePoints2.length - 2);
+          }
+          break;
+        case 2:
+          _routePoints3 = routeOptions[leastCongestedIndex];
+          _congestionLevels3 = congestionOptions[leastCongestedIndex];
+          for (int j = 0; j < _busIndices3.length; j++) {
+            _busIndices3[j] = (_busIndices3[j] * (_routePoints3.length / (_routePoints3.length + 1))).round().clamp(0, _routePoints3.length - 2);
+          }
+          break;
+      }
+    });
+  }
+
+  List<Polyline> _createColoredPolylines(List<LatLng> routePoints, List<String> congestionLevels) {
+    if (routePoints.isEmpty || routePoints.length < 2) {
+      return [];
+    }
+
+    if (congestionLevels.isEmpty) {
+      return [
+        Polyline(
+          points: routePoints,
+          strokeWidth: 4.0,
+          color: Colors.grey,
+        ),
+      ];
+    }
+
+    List<Polyline> polylines = [];
+    int pointsPerSegment = (routePoints.length / congestionLevels.length).ceil();
+
+    for (int i = 0; i < congestionLevels.length; i++) {
+      int startIndex = i * pointsPerSegment;
+      int endIndex = math.min((i + 1) * pointsPerSegment, routePoints.length);
+      if (endIndex <= startIndex) continue;
+
+      List<LatLng> segmentPoints = routePoints.sublist(startIndex, endIndex);
+      polylines.add(
+        Polyline(
+          points: segmentPoints,
+          strokeWidth: 4.0,
+          color: _getCongestionColor(congestionLevels[i]),
+        ),
+      );
+    }
+
+    return polylines;
+  }
+
   void _notifyBusSpeeds() {
     if (widget.onBusSpeedsUpdated != null) {
       List<Map<String, dynamic>> busSpeeds = [
         ..._busSpeeds1.asMap().entries.map(
-          (e) => {
+              (e) => {
             'routeIndex': 0,
             'busIndex': e.key,
             'speed': e.value,
@@ -79,7 +234,7 @@ class _MapViewState extends State<MapView> {
           },
         ),
         ..._busSpeeds2.asMap().entries.map(
-          (e) => {
+              (e) => {
             'routeIndex': 1,
             'busIndex': e.key,
             'speed': e.value,
@@ -88,7 +243,7 @@ class _MapViewState extends State<MapView> {
           },
         ),
         ..._busSpeeds3.asMap().entries.map(
-          (e) => {
+              (e) => {
             'routeIndex': 2,
             'busIndex': e.key,
             'speed': e.value,
@@ -101,73 +256,113 @@ class _MapViewState extends State<MapView> {
     }
   }
 
-  Future<void> _fetchRoute(List<Tuple2<LatLng, LatLng>> routePairs) async {
+  Future<void> _fetchRoute(List<Tuple2<LatLng, LatLng>> routePairs, {bool initialFetch = true}) async {
     try {
       for (int i = 0; i < routePairs.length; i++) {
-        final url = Uri.parse(
-          'https://api.mapbox.com/directions/v5/mapbox/driving/${routePairs[i].item1.longitude},${routePairs[i].item1.latitude};${routePairs[i].item2.longitude},${routePairs[i].item2.latitude}?geometries=geojson&access_token=$_mapboxAccessToken',
-        );
-        final response = await http.get(url);
+        String profile = 'driving';
+        String urlString = 'https://api.mapbox.com/directions/v5/mapbox/$profile/'
+            '${routePairs[i].item1.longitude},${routePairs[i].item1.latitude};'
+            '${routePairs[i].item2.longitude},${routePairs[i].item2.latitude}'
+            '?geometries=geojson&alternatives=true&access_token=$_mapboxAccessToken';
+        Uri url = Uri.parse(urlString);
+        var response = await http.get(url);
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          if (data['routes'] != null && data['routes'].isNotEmpty) {
-            final route =
-                data['routes'][0]['geometry']['coordinates'] as List<dynamic>;
-            final routePoints =
-                route.map((coord) => LatLng(coord[1], coord[0])).toList();
+          debugPrint('Route $i response: $data');
 
-            setState(() {
-              switch (i) {
-                case 0:
-                  _routePoints1 = routePoints;
-                  _fitBounds(
-                    routePairs[i].item1,
-                    routePairs[i].item2,
-                    _routePoints1,
-                  );
-                  break;
-                case 1:
-                  _routePoints2 = routePoints;
-                  _fitBounds(
-                    routePairs[i].item1,
-                    routePairs[i].item2,
-                    _routePoints2,
-                  );
-                  break;
-                case 2:
-                  _routePoints3 = routePoints;
-                  _fitBounds(
-                    routePairs[i].item1,
-                    routePairs[i].item2,
-                    _routePoints3,
-                  );
-                  break;
-              }
-            });
+          if (data['routes'] == null || data['routes'].isEmpty) {
+            debugPrint('No routes found for route $i');
+            continue;
           }
+
+          List<List<LatLng>> routeOptions = [];
+          List<List<String>> congestionOptions = [];
+
+          // Process all route options
+          for (var routeData in data['routes']) {
+            final route = routeData['geometry']['coordinates'] as List<dynamic>;
+            final routePoints = route.map((coord) => LatLng(coord[1], coord[0])).toList();
+
+            // Synthetic congestion based on time of day
+            List<String> congestionLevels = [];
+            if (routePoints.length >= 2) {
+              DateTime now = DateTime.now();
+              int hour = now.hour;
+              String congestionLevel = (hour >= 7 && hour < 9) || (hour >= 17 && hour < 19)
+                  ? 'heavy'
+                  : (hour >= 9 && hour < 17)
+                  ? 'moderate'
+                  : 'low';
+              congestionLevels = List.filled((routePoints.length / 2).ceil(), congestionLevel);
+            }
+
+            routeOptions.add(routePoints);
+            congestionOptions.add(congestionLevels);
+          }
+
+          setState(() {
+            switch (i) {
+              case 0:
+                _routeOptions1 = routeOptions;
+                _congestionOptions1 = congestionOptions;
+                _selectLeastCongestedRoute(0);
+                if (initialFetch && _routePoints1.length >= 2) {
+                  _fitBounds(routePairs[i].item1, routePairs[i].item2, _routePoints1);
+                }
+                break;
+              case 1:
+                _routeOptions2 = routeOptions;
+                _congestionOptions2 = congestionOptions;
+                _selectLeastCongestedRoute(1);
+                if (initialFetch && _routePoints2.length >= 2) {
+                  _fitBounds(routePairs[i].item1, routePairs[i].item2, _routePoints2);
+                }
+                break;
+              case 2:
+                _routeOptions3 = routeOptions;
+                _congestionOptions3 = congestionOptions;
+                _selectLeastCongestedRoute(2);
+                if (initialFetch && _routePoints3.length >= 2) {
+                  _fitBounds(routePairs[i].item1, routePairs[i].item2, _routePoints3);
+                }
+                break;
+            }
+          });
         } else {
-          debugPrint('Failed to fetch route $i: ${response.statusCode}');
+          debugPrint('Failed to fetch route $i: ${response.statusCode} - ${response.body}');
         }
       }
-      _startBusSimulation();
+
+      if (initialFetch) {
+        _startBusSimulation();
+      }
     } catch (e) {
       debugPrint('Error fetching routes: $e');
     }
   }
 
+  Future<void> _updateTrafficData(List<Tuple2<LatLng, LatLng>> routePairs) async {
+    await _fetchRoute(routePairs, initialFetch: false);
 
-  // desgn the desing the
-  void _fitBounds(
-    LatLng startPoint,
-    LatLng endPoint,
-    List<LatLng> routePoints,
-  ) {
-    final bounds = LatLngBounds.fromPoints([
-      startPoint,
-      endPoint,
-      ...routePoints,
-    ]);
+    // Re-select the least congested route based on updated data
+    _selectLeastCongestedRoute(0);
+    _selectLeastCongestedRoute(1);
+    _selectLeastCongestedRoute(2);
+
+    // Force rebuild of the traffic tile layer
+    setState(() {
+      _trafficTileLayerKey.currentState?.setState(() {});
+    });
+  }
+
+  void _fitBounds(LatLng startPoint, LatLng endPoint, List<LatLng> routePoints) {
+    if (routePoints.length < 2) {
+      debugPrint('Not enough points to fit bounds');
+      return;
+    }
+
+    final bounds = LatLngBounds.fromPoints([startPoint, endPoint, ...routePoints]);
     final cameraFit = CameraFit.bounds(
       bounds: bounds,
       padding: const EdgeInsets.all(50),
@@ -181,7 +376,6 @@ class _MapViewState extends State<MapView> {
     });
   }
 
-  // to animate the current location
   void _animateToCurrentLocation(double bearing) {
     if (_currentLocation != null) {
       _mapController.moveAndRotate(_currentLocation!, 15.5, bearing);
@@ -203,32 +397,22 @@ class _MapViewState extends State<MapView> {
 
     _busIndices1 = List.generate(
       n1,
-      (index) => (index * (_routePoints1.length ~/ n1)).clamp(
-        0,
-        _routePoints1.length - 2,
-      ),
+          (index) => (index * (_routePoints1.length ~/ n1)).clamp(0, _routePoints1.length - 2),
     );
     _busIndices2 = List.generate(
       n2,
-      (index) => (index * (_routePoints2.length ~/ n2)).clamp(
-        0,
-        _routePoints2.length - 2,
-      ),
+          (index) => (index * (_routePoints2.length ~/ n2)).clamp(0, _routePoints2.length - 2),
     );
     _busIndices3 = List.generate(
       n3,
-      (index) => (index * (_routePoints3.length ~/ n3)).clamp(
-        0,
-        _routePoints3.length - 2,
-      ),
+          (index) => (index * (_routePoints3.length ~/ n3)).clamp(0, _routePoints3.length - 2),
     );
 
-    // Initialize individual bus speeds (default to 0.5)
     _busSpeeds1 = List.generate(n1, (_) => 0.5);
     _busSpeeds2 = List.generate(n2, (_) => 0.5);
     _busSpeeds3 = List.generate(n3, (_) => 0.5);
 
-    _notifyBusSpeeds(); // Notify initial speeds
+    _notifyBusSpeeds();
 
     _simulationTimer?.cancel();
     _simulationTimer = Timer.periodic(Duration(milliseconds: 16), (timer) {
@@ -257,12 +441,11 @@ class _MapViewState extends State<MapView> {
           _routePoints3,
           _busSpeeds3,
         );
-        _notifyBusSpeeds(); // Notify speeds after update
+        _notifyBusSpeeds();
       });
     });
   }
 
-  // to geet the current location of the
   double _calculateAngle(LatLng p1, LatLng p2, LatLng p3) {
     final double v1x = p2.longitude - p1.longitude;
     final double v1y = p2.latitude - p1.latitude;
@@ -281,21 +464,20 @@ class _MapViewState extends State<MapView> {
   }
 
   void _updateBusPositions(
-    List<LatLng> positions,
-    List<int> indices,
-    List<bool> directions,
-    List<double> progress,
-    List<LatLng> routePoints,
-    List<double> speeds,
-  ) {
+      List<LatLng> positions,
+      List<int> indices,
+      List<bool> directions,
+      List<double> progress,
+      List<LatLng> routePoints,
+      List<double> speeds,
+      ) {
     if (routePoints.length < 2) return;
 
     for (int i = 0; i < positions.length; i++) {
-      if (speeds[i] <= 0) continue; // Skip if speed is 0
+      if (speeds[i] <= 0) continue;
 
       double baseSpeedFactor = speeds[i] * 0.005;
 
-      // Adjust speed for sharp turns
       double speedFactor = baseSpeedFactor;
       if (indices[i] > 0 && indices[i] < routePoints.length - 2) {
         final prevPoint = routePoints[indices[i] - 1];
@@ -304,7 +486,7 @@ class _MapViewState extends State<MapView> {
         final angle = _calculateAngle(prevPoint, currentPoint, nextPoint);
 
         if (angle > 45) {
-          speedFactor = baseSpeedFactor * 0.75; // 75% slower
+          speedFactor = baseSpeedFactor * 0.75;
         }
       }
 
@@ -314,7 +496,6 @@ class _MapViewState extends State<MapView> {
         progress[i] -= speedFactor;
       }
 
-      // Handle endpoint transitions
       if (progress[i] >= 1.0) {
         progress[i] = 1.0;
         indices[i]++;
@@ -340,10 +521,8 @@ class _MapViewState extends State<MapView> {
       final startPoint = routePoints[indices[i]];
       final endPoint = routePoints[indices[i] + 1];
       positions[i] = LatLng(
-        startPoint.latitude +
-            (endPoint.latitude - startPoint.latitude) * progress[i],
-        startPoint.longitude +
-            (endPoint.longitude - startPoint.longitude) * progress[i],
+        startPoint.latitude + (endPoint.latitude - startPoint.latitude) * progress[i],
+        startPoint.longitude + (endPoint.longitude - startPoint.longitude) * progress[i],
       );
     }
   }
@@ -357,56 +536,49 @@ class _MapViewState extends State<MapView> {
       } else if (routeIndex == 2 && busIndex < _busSpeeds3.length) {
         _busSpeeds3[busIndex] = speed.clamp(0.0, 1.0);
       }
-      _notifyBusSpeeds(); // Notify after speed change
+      _notifyBusSpeeds();
     });
   }
 
   void _showSpeedDialog(BuildContext context, int routeIndex, int busIndex) {
-    double currentSpeed =
-        routeIndex == 0
-            ? _busSpeeds1[busIndex]
-            : routeIndex == 1
-            ? _busSpeeds2[busIndex]
-            : _busSpeeds3[busIndex];
+    double currentSpeed = routeIndex == 0
+        ? _busSpeeds1[busIndex]
+        : routeIndex == 1
+        ? _busSpeeds2[busIndex]
+        : _busSpeeds3[busIndex];
 
     showDialog(
       context: context,
-      builder:
-          (dialogContext) => StatefulBuilder(
-            builder:
-                (dialogContext, setDialogState) => AlertDialog(
-                  title: Text(
-                    'Bus ${busIndex + 1} Speed (Route ${routeIndex + 1})',
-                  ),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Speed: ${(currentSpeed * 100).toStringAsFixed(0)}%',
-                      ),
-                      Slider(
-                        value: currentSpeed,
-                        min: 0.0,
-                        max: 1.0,
-                        divisions: 10,
-                        label: (currentSpeed * 100).toStringAsFixed(0),
-                        onChanged: (value) {
-                          setDialogState(() {
-                            currentSpeed = value;
-                          });
-                          _setBusSpeed(routeIndex, busIndex, value);
-                        },
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('Close'),
-                    ),
-                  ],
-                ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text('Bus ${busIndex + 1} Speed (Route ${routeIndex + 1})'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Speed: ${(currentSpeed * 100).toStringAsFixed(0)}%'),
+              Slider(
+                value: currentSpeed,
+                min: 0.0,
+                max: 1.0,
+                divisions: 10,
+                label: (currentSpeed * 100).toStringAsFixed(0),
+                onChanged: (value) {
+                  setDialogState(() {
+                    currentSpeed = value;
+                  });
+                  _setBusSpeed(routeIndex, busIndex, value);
+                },
+              ),
+            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -418,12 +590,21 @@ class _MapViewState extends State<MapView> {
       Tuple2(_sidestKiloBusStation, _piasaBusStation),
       Tuple2(_sidestKiloBusStation, _artKiloBusStation),
       Tuple2(_sidestKiloBusStation, _kebenaBusStation),
-    ]);
+    ], initialFetch: true);
+
+    _trafficUpdateTimer = Timer.periodic(Duration(minutes: 5), (timer) {
+      _updateTrafficData([
+        Tuple2(_sidestKiloBusStation, _piasaBusStation),
+        Tuple2(_sidestKiloBusStation, _artKiloBusStation),
+        Tuple2(_sidestKiloBusStation, _kebenaBusStation),
+      ]);
+    });
   }
 
   @override
   void dispose() {
     _simulationTimer?.cancel();
+    _trafficUpdateTimer?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -445,29 +626,21 @@ class _MapViewState extends State<MapView> {
             children: [
               TileLayer(
                 urlTemplate:
-                    'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$_mapboxAccessToken',
+                'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$_mapboxAccessToken',
                 additionalOptions: {'accessToken': _mapboxAccessToken},
+              ),
+              TileLayer(
+                key: _trafficTileLayerKey,
+                urlTemplate:
+                'https://api.mapbox.com/styles/v1/mapbox/traffic-day-v2/tiles/{z}/{x}/{y}?access_token=$_mapboxAccessToken',
+                additionalOptions: {'accessToken': _mapboxAccessToken},
+                tileProvider: NetworkTileProvider(),
               ),
               PolylineLayer(
                 polylines: [
-                  if (_routePoints1.isNotEmpty)
-                    Polyline(
-                      points: _routePoints1,
-                      strokeWidth: 4.0,
-                      color: Colors.blue,
-                    ),
-                  if (_routePoints2.isNotEmpty)
-                    Polyline(
-                      points: _routePoints2,
-                      strokeWidth: 4.0,
-                      color: Colors.green,
-                    ),
-                  if (_routePoints3.isNotEmpty)
-                    Polyline(
-                      points: _routePoints3,
-                      strokeWidth: 4.0,
-                      color: Colors.red,
-                    ),
+                  ..._createColoredPolylines(_routePoints1, _congestionLevels1),
+                  ..._createColoredPolylines(_routePoints2, _congestionLevels2),
+                  ..._createColoredPolylines(_routePoints3, _congestionLevels3),
                 ],
               ),
               MarkerLayer(
@@ -497,7 +670,7 @@ class _MapViewState extends State<MapView> {
                     child: const Icon(Icons.circle, color: Colors.red),
                   ),
                   ..._busPositions1.asMap().entries.map(
-                    (entry) => Marker(
+                        (entry) => Marker(
                       point: entry.value,
                       width: 30,
                       height: 30,
@@ -511,7 +684,7 @@ class _MapViewState extends State<MapView> {
                     ),
                   ),
                   ..._busPositions2.asMap().entries.map(
-                    (entry) => Marker(
+                        (entry) => Marker(
                       point: entry.value,
                       width: 30,
                       height: 30,
@@ -525,7 +698,7 @@ class _MapViewState extends State<MapView> {
                     ),
                   ),
                   ..._busPositions3.asMap().entries.map(
-                    (entry) => Marker(
+                        (entry) => Marker(
                       point: entry.value,
                       width: 30,
                       height: 30,

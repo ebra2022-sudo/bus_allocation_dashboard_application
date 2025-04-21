@@ -29,6 +29,9 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
+
+// ample of  the current
 // Dashboard Screen
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -54,6 +57,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final TextEditingController _startController = TextEditingController();
   final TextEditingController _endController = TextEditingController();
 
+  // design the  ste of the  deig
   String startPoint = '';
   String endPoint = '';
 
@@ -145,6 +149,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         elevation: 4.0,
       ),
+
+      // design the  stat oe ghte
       floatingActionButton:
           _isMessagePanelOpen
               ? null
@@ -154,6 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 backgroundColor: Colors.green,
                 child: const Icon(Icons.message, color: Colors.white),
               ),
+      //floting action buttton
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Stack(
         children: [
@@ -271,8 +278,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     spreadRadius: 2.0,
                   ),
                 ],
+                //  design the sate of the current value
               ),
               child:
+                  // design the  sample of the current vahe
                   _isSidePanelOpen
                       ? Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -309,6 +318,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20.0,
                                 ),
+
+                                /**
+                                 * dwsign the state of the current
+                                 * */
                                 child: Column(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceAround,
@@ -404,6 +417,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       : null,
             ),
           ),
+          // Align thestt
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
@@ -469,6 +483,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                     ),
                                   ),
+                                  // state ase of the  current   value pf the die
                                   const SizedBox(width: 8),
                                   IconButton(
                                     icon: const Icon(
