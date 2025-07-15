@@ -1,13 +1,13 @@
-import 'package:bus_allocation_dashboard_application/map_view.dart';
-import 'package:bus_allocation_dashboard_application/setting_screen.dart';
 import 'package:bus_allocation_dashboard_application/system_data_analytic.dart';
 import 'package:flutter/material.dart';
-import 'about_screen.dart';
-import 'map_option_screen.dart';
-
+import 'package:flutter_map/flutter_map.dart'; // Keep if MapController is passed
+import 'package:latlong2/latlong.dart'; // Keep if LatLng is used in signatures
+import 'map_view.dart'; // Import your MapView widget
+// Assume StockAnalyticsPage is defined in 'stock_analytics_page.dart' or similar
+// Import StockAnalyticsPage
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -18,21 +18,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Admin Dashboard',
       theme: ThemeData(primarySwatch: Colors.green),
-      initialRoute: '/dashboard',
-      routes: {
-        '/dashboard': (context) => const DashboardScreen(),
-        '/settings': (context) => const SettingsScreen(),
-        '/map-options': (context) => const MapOptionsScreen(),
-        '/about': (context) => const AboutScreen(),
-      },
+      home: const DashboardScreen(),
     );
   }
 }
 
-
-
-// ample of  the current
-// Dashboard Screen
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -46,9 +36,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final double _sidePanelWidth = 350.0;
   final double _messagePanelWidth = 350.0;
 
-  double _bottomHeight = 240.0;
-  final double _minHeight = 240.0;
-  final double _maxHeight = 600.0;
+  // --- MODIFIED STATE VARIABLES ---
+  // Define a fixed height for the analytics panel. This will not change.
+  final double _fixedAnalyticsPanelHeight = 700.0;
+
+  // This variable controls the 'bottom' property of the map panel.
+  // When _mapPanelBottomOffset == _fixedAnalyticsPanelHeight, map is fully above analytics.
+  // When _mapPanelBottomOffset == 0, map covers analytics fully (its bottom aligns with screen bottom).
+  late double _mapPanelBottomOffset;
+  // --- END MODIFIED STATE VARIABLES ---
 
   bool _isHovering = false;
   bool _isDragging = false;
@@ -57,12 +53,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final TextEditingController _startController = TextEditingController();
   final TextEditingController _endController = TextEditingController();
 
-  // design the  ste of the  deig
   String startPoint = '';
   String endPoint = '';
 
-  // Store bus speeds from MapView
   List<Map<String, dynamic>> _busSpeeds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize _mapPanelBottomOffset to show map above analytics initially
+    _mapPanelBottomOffset = _fixedAnalyticsPanelHeight;
+  }
 
   void _triggerSearch() {
     setState(() {
@@ -91,19 +92,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
     setState(() {
-      _bottomHeight -= details.delta.dy;
-      _bottomHeight = _bottomHeight.clamp(_minHeight, _maxHeight);
-      _isDraggingUp = details.delta.dy < 0;
+      // Dragging down (positive dy) reduces _mapPanelBottomOffset, pushing map down.
+      // Dragging up (negative dy) increases _mapPanelBottomOffset, pulling map up.
+      _mapPanelBottomOffset -= details.delta.dy;
+
+      // Clamp _mapPanelBottomOffset:
+      // Minimum: 0.0 (map's bottom is at the screen's bottom, covering analytics)
+      // Maximum: _fixedAnalyticsPanelHeight (map's bottom is at the top of analytics, not covering it)
+      _mapPanelBottomOffset = _mapPanelBottomOffset.clamp(
+        0.0,
+        _fixedAnalyticsPanelHeight,
+      );
+
+      // _analyticsHeight is no longer tied to _mapPanelBottomOffset.
+      // The arrow direction indication will be based on the change in _mapPanelBottomOffset.
+      _isDraggingUp =
+          details.delta.dy <
+          0; // True if dragging up (increasing offset, map goes up)
     });
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
     setState(() {
       _isDragging = false;
+
+      // Snap to fully covering analytics (mapPanelBottomOffset = 0)
+      // or fully above analytics (mapPanelBottomOffset = _fixedAnalyticsPanelHeight)
+      if (_mapPanelBottomOffset < _fixedAnalyticsPanelHeight / 2) {
+        _mapPanelBottomOffset = 10.0; // Snap map down to cover analytics
+      } else {
+        _mapPanelBottomOffset =
+            _fixedAnalyticsPanelHeight; // Snap map up to be above analytics
+      }
+      // Removed: _analyticsHeight = _mapBottomOffset; // This line caused the squeezing
     });
   }
 
-  // Callback to receive bus speeds from MapView
   void _updateBusSpeeds(List<Map<String, dynamic>> busSpeeds) {
     setState(() {
       _busSpeeds = busSpeeds;
@@ -112,8 +136,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final double totalHeight = MediaQuery.of(context).size.height;
-    final double mapHeight = totalHeight - _bottomHeight - kToolbarHeight;
+    // The FloatingActionButton for the message panel should only be visible when the message panel is CLOSED.
+    // AND when the map is NOT slid down to cover the FAB.
+    // If _mapPanelBottomOffset is close to 0, it means the map is covering the bottom part of the screen where FAB is.
+    bool isMapFullyDown =
+        _mapPanelBottomOffset <=
+        50.0; // Adjust threshold as needed for FAB disappearance
+
+    final bool showMessageFab = !_isMessagePanelOpen && !isMapFullyDown;
 
     return Scaffold(
       appBar: AppBar(
@@ -150,31 +180,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 4.0,
       ),
 
-      // design the  stat oe ghte
       floatingActionButton:
-          _isMessagePanelOpen
-              ? null
-              : FloatingActionButton(
+          showMessageFab
+              ? FloatingActionButton(
+                heroTag: 'messageFab',
                 onPressed: _toggleMessagePanel,
                 hoverColor: Colors.blueAccent,
                 backgroundColor: Colors.green,
                 child: const Icon(Icons.message, color: Colors.white),
-              ),
-      //floting action buttton
+              )
+              : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Stack(
         children: [
+          // Main content area for Analytics and Map
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             margin: EdgeInsets.only(
               left: _isSidePanelOpen ? _sidePanelWidth : 0.0,
+              // The right margin was removed in the previous fix to allow message panel to overlap.
               right: _isMessagePanelOpen ? _messagePanelWidth : 0.0,
             ),
-            color: Colors.white,
-            child: Column(
+            color: Colors.transparent,
+            child: Stack(
               children: [
-                SizedBox(
-                  height: mapHeight,
+                // Analytics Graph (NOW WITH FIXED HEIGHT)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height:
+                      _fixedAnalyticsPanelHeight, // <--- Using the fixed height here
+                  child: Container(
+                    padding: const EdgeInsets.only(
+                      bottom: 10.0,
+                      left: 10.0,
+                      right: 10,
+                    ),
+                    color: Colors.transparent,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10.0),
+                      child: Container(
+                        color: const Color.fromARGB(255, 168, 255, 130),
+                        child: const Center(child: StockAnalyticsPage()),
+                      ),
+                    ),
+                  ),
+                ),
+                // Map View (SLIDES OVER ANALYTICS)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom:
+                      _mapPanelBottomOffset, // <--- Controlled by drag to slide over analytics
                   child: Container(
                     color: Colors.transparent,
                     padding: const EdgeInsets.only(
@@ -195,62 +254,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
-                MouseRegion(
-                  onEnter: (_) => setState(() => _isHovering = true),
-                  onExit: (_) => setState(() => _isHovering = false),
-                  child: GestureDetector(
-                    onVerticalDragUpdate: _onVerticalDragUpdate,
-                    onVerticalDragStart: _onVerticalDragStart,
-                    onVerticalDragEnd: _onVerticalDragEnd,
-                    child: Container(
-                      height: 20,
-                      alignment: Alignment.center,
-                      child:
-                          _isDragging && _isDraggingUp == true
-                              ? Icon(
-                                Icons.arrow_upward,
-                                size: 18.0,
-                                color:
-                                    _isDragging
-                                        ? Colors.blue
-                                        : Colors.grey.shade600,
-                              )
-                              : _isDragging && _isDraggingUp == false
-                              ? Icon(
-                                Icons.arrow_downward,
-                                size: 18.0,
-                                color:
-                                    _isDragging
-                                        ? Colors.blue
-                                        : Colors.grey.shade600,
-                              )
-                              : Container(
-                                width: 80,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color:
-                                      _isHovering ? Colors.blue : Colors.green,
-                                  borderRadius: BorderRadius.circular(2.5),
-                                ),
-                              ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: SizedBox(
-                    height: _bottomHeight - 10,
-                    child: Container(
-                      padding: const EdgeInsets.only(
-                        bottom: 10.0,
-                        left: 10.0,
-                        right: 10,
-                      ),
-                      color: Colors.transparent,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10.0),
+
+                // Resizable Grab Handle (positioned just above the fixed analytics height)
+                Positioned(
+                  bottom:
+                      _mapPanelBottomOffset, // <--- Handle stays at the top edge of analytics
+                  left: 0,
+                  right: 0,
+                  height: 20,
+                  child: Center(
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _isHovering = true),
+                      onExit: (_) => setState(() => _isHovering = false),
+                      child: GestureDetector(
+                        onVerticalDragUpdate: _onVerticalDragUpdate,
+                        onVerticalDragStart: _onVerticalDragStart,
+                        onVerticalDragEnd: _onVerticalDragEnd,
                         child: Container(
-                          color: const Color.fromARGB(255, 168, 255, 130),
-                          child: const Center(child: StockAnalyticsPage()),
+                          height: 20,
+                          alignment: Alignment.center,
+                          child:
+                              _isDragging && _isDraggingUp == true
+                                  ? Icon(
+                                    Icons.arrow_upward,
+                                    size: 18.0,
+                                    color:
+                                        _isDragging
+                                            ? Colors.blue
+                                            : Colors.grey.shade600,
+                                  )
+                                  : _isDragging && _isDraggingUp == false
+                                  ? Icon(
+                                    Icons.arrow_downward,
+                                    size: 18.0,
+                                    color:
+                                        _isDragging
+                                            ? Colors.blue
+                                            : Colors.grey.shade600,
+                                  )
+                                  : Container(
+                                    width: 80,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          _isHovering
+                                              ? Colors.blue
+                                              : Colors.green,
+                                      borderRadius: BorderRadius.circular(2.5),
+                                    ),
+                                  ),
                         ),
                       ),
                     ),
@@ -259,6 +311,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
+
+          // Side Panel (remains unchanged)
           Padding(
             padding: const EdgeInsets.only(top: 10, bottom: 10),
             child: AnimatedContainer(
@@ -278,10 +332,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     spreadRadius: 2.0,
                   ),
                 ],
-                //  design the sate of the current value
               ),
               child:
-                  // design the  sample of the current vahe
                   _isSidePanelOpen
                       ? Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -292,7 +344,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               leading: const Icon(Icons.map),
                               title: const Text('Map Options'),
                               onTap: () {
-                                Navigator.pushNamed(context, '/map-options');
                                 _toggleSidePanel();
                               },
                             ),
@@ -300,7 +351,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               leading: const Icon(Icons.settings),
                               title: const Text('Settings'),
                               onTap: () {
-                                Navigator.pushNamed(context, '/settings');
                                 _toggleSidePanel();
                               },
                             ),
@@ -308,7 +358,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               leading: const Icon(Icons.info),
                               title: const Text('About'),
                               onTap: () {
-                                Navigator.pushNamed(context, '/about');
                                 _toggleSidePanel();
                               },
                             ),
@@ -318,10 +367,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 20.0,
                                 ),
-
-                                /**
-                                 * dwsign the state of the current
-                                 * */
                                 child: Column(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceAround,
@@ -350,65 +395,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(
-                              height: 10,
-                            ), // Spacer before card list
+                            const SizedBox(height: 10),
                             Expanded(
                               child:
                                   _busSpeeds.isEmpty
                                       ? const Center(
                                         child: Text("No bus speeds available"),
                                       )
-                                      : ListView(
+                                      : ListView.builder(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 8,
                                           vertical: 8,
                                         ),
-                                        children:
-                                            _busSpeeds.map((bus) {
-                                              return Card(
-                                                margin: const EdgeInsets.only(
-                                                  bottom: 8,
-                                                ),
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    8.0,
+                                        itemCount: _busSpeeds.length,
+                                        itemBuilder: (context, index) {
+                                          final bus = _busSpeeds[index];
+                                          return Card(
+                                            margin: const EdgeInsets.only(
+                                              bottom: 8,
+                                            ),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.start,
+                                                children: [
+                                                  Icon(
+                                                    Icons.directions_bus,
+                                                    color:
+                                                        bus['color'] as Color,
                                                   ),
-                                                  child: Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment.start,
+                                                  const SizedBox(width: 8),
+                                                  Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
-                                                      Icon(
-                                                        Icons.directions_bus,
-                                                        color:
-                                                            bus['color']
-                                                                as Color,
+                                                      Text(
+                                                        'Bus ${bus['busIndex']}',
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
                                                       ),
-                                                      const SizedBox(width: 8),
-                                                      Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            'Bus ${bus['busIndex'] + 1} (${bus['routeName']})',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                ),
-                                                          ),
-                                                          Text(
-                                                            'Speed: ${(bus['speed'] * 100).toStringAsFixed(0)}%',
-                                                          ),
-                                                        ],
+                                                      Text(
+                                                        'Speed: ${(bus['speed'] * 100).toStringAsFixed(0)}%',
                                                       ),
                                                     ],
                                                   ),
-                                                ),
-                                              );
-                                            }).toList(),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       ),
                             ),
                           ],
@@ -417,7 +458,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       : null,
             ),
           ),
-          // Align thestt
+          // Message Panel (remains unchanged from previous fix, allows overlap)
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
@@ -483,7 +524,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                     ),
                                   ),
-                                  // state ase of the  current   value pf the die
                                   const SizedBox(width: 8),
                                   IconButton(
                                     icon: const Icon(
@@ -505,8 +545,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
-  // sample the current vlaue
 
   @override
   void dispose() {

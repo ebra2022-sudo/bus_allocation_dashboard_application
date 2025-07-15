@@ -1,14 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'dart:convert';
 import 'dart:math';
-import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:intl/intl.dart';
 
 class RouteData {
   final DateTime time;
-  final double price;
+  final int demand;
   final String routeName;
 
-  RouteData(this.time, this.price, this.routeName);
+  RouteData(this.time, this.demand, this.routeName);
 }
 
 class StockAnalyticsPage extends StatefulWidget {
@@ -19,336 +23,515 @@ class StockAnalyticsPage extends StatefulWidget {
 }
 
 class _StockAnalyticsPageState extends State<StockAnalyticsPage> {
+  // State variables
   List<List<RouteData>> routeData = [];
   String selectedTimeFrame = 'Hourly';
-  Random random = Random();
-  double updateInterval = 1.0;
-  String intervalUnit = 'Seconds';
-  Timer? _timer;
+  late WebSocketChannel channel;
+  final ScrollController _scrollController = ScrollController();
+  bool _isPaused = false;
 
-  final List<String> stations = ['Station A', 'Station B', 'Station C', 'Station D'];
+  // Configuration
+  // --- CORRECTED STATION NAMES HERE ---
+  final List<String> stations = [
+    '6 Kilo',
+    '4 Kilo',
+    'Piassa',
+    'Kebena',
+  ];
   late List<String> routeCombinations;
-  late Map<String, bool> routeVisibility; // Track visibility of each route
+  late Map<String, bool> routeVisibility;
+  final List<Color> routeColors = [
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.purple,
+    Colors.orange,
+    Colors.cyan,
+    Colors.pink,
+    Colors.yellow,
+    Colors.teal,
+    Colors.indigo,
+    Colors.lime,
+    Colors.amber,
+  ];
 
   @override
   void initState() {
     super.initState();
+    _initialize();
+    _connectWebSocket();
+  }
+
+  void _initialize() {
     routeCombinations = [];
-    for (int i = 0; i < stations.length; i++) {
-      for (int j = 0; j < stations.length; j++) {
-        if (i != j) {
-          routeCombinations.add('${stations[i]} -> ${stations[j]}');
+    // Ensure the order of combinations matches how your backend defines them if important,
+    // though the map lookup (`routeNameToIndex`) should handle reordering.
+    // However, to prevent `Unknown routeName` initially, defining the exact combinations
+    // as the backend would send them is the safest approach.
+    // Let's explicitly list them as the backend does to guarantee a match.
+
+    // This section needs to match the `self.routes` list in your Python backend
+    // `TimeBasedDemandCalculator.__init__` method.
+    routeCombinations = [
+      '6 Kilo to 4 Kilo', '6 Kilo to Piassa', '6 Kilo to Kebena',
+      '4 Kilo to 6 Kilo', '4 Kilo to Piassa', '4 Kilo to Kebena',
+      'Piassa to 6 Kilo', 'Piassa to 4 Kilo', 'Piassa to Kebena',
+      'Kebena to 6 Kilo', 'Kebena to 4 Kilo', 'Kebena to Piassa'
+    ];
+
+
+    routeVisibility = {for (var route in routeCombinations) route: false};
+    if (routeCombinations.isNotEmpty) {
+      // Set the first few routes to be visible by default, or just one
+      for (int i = 0; i < math.min(3, routeCombinations.length); i++) {
+        routeVisibility[routeCombinations[i]] = true;
+      }
+    }
+
+    routeData = List.generate(routeCombinations.length, (_) => []);
+  }
+
+  void _connectWebSocket() {
+    channel = WebSocketChannel.connect(
+      Uri.parse('ws://127.0.0.1:8000/ws/multi_route/'),
+    );
+    channel?.stream.listen(
+          (data) {
+        if (!mounted) return;
+
+        final decodedData = jsonDecode(data as String) as List<dynamic>;
+
+        final Map<String, int> routeNameToIndex = {
+          for (var i = 0; i < routeCombinations.length; i++)
+            routeCombinations[i]: i
+        };
+
+        for (final item in decodedData) {
+          if (item is Map<String, dynamic>) {
+            final String routeName = item['routeName'];
+            final int? index = routeNameToIndex[routeName];
+
+            if (index != null) {
+              final DateTime time = DateTime.parse(item['time']).toLocal();
+              // CORRECTED: Parse demand directly as int
+              final int demand = (item['demand'] ?? 0).toInt();
+
+              final RouteData newRouteData = RouteData(time, demand, routeName);
+
+              // Check if the routeData[index] list has been initialized
+              if (routeData.length <= index) {
+                // This scenario should ideally not happen if routeCombinations are correctly matched
+                // However, as a safeguard, extend the list
+                setState(() {
+                  while (routeData.length <= index) {
+                    routeData.add([]);
+                  }
+                });
+              }
+
+              routeData[index].add(newRouteData);
+
+              // Optional: Limit historical entries
+              // if (routeData[index].length > 100) {
+              //   routeData[index].removeAt(0);
+              // }
+            } else {
+              print('WebSocket Client: Unknown routeName received: $routeName');
+            }
+          }
         }
-      }
-    }
 
-    // Initialize visibility map (all routes visible by default)
-    routeVisibility = { for (var route in routeCombinations) route : false };
-
-    for (int i = 0; i < routeCombinations.length; i++) {
-      routeData.add([]);
-    }
-
-    generateInitialData();
-    startDataUpdate();
-  }
-
-  void generateInitialData() {
-    for (int routeIndex = 0; routeIndex < routeCombinations.length; routeIndex++) {
-      routeData[routeIndex].clear();
-      DateTime now = DateTime.now();
-      double basePrice = 100.0 + routeIndex * 10;
-
-      int points = getPointsForTimeFrame(selectedTimeFrame);
-      for (int i = points; i >= 0; i--) {
-        DateTime time = getTimeForFrame(now, i);
-        double variation = random.nextDouble() * 2 - 1;
-        basePrice += variation;
-        routeData[routeIndex].add(RouteData(time, basePrice, routeCombinations[routeIndex]));
-      }
-    }
-  }
-
-  void updateData() {
-    setState(() {
-      DateTime now = DateTime.now();
-      for (int routeIndex = 0; routeIndex < routeCombinations.length; routeIndex++) {
-        double lastPrice = routeData[routeIndex].last.price;
-        double variation = random.nextDouble() * 2 - 1;
-        routeData[routeIndex].add(RouteData(now, lastPrice + variation, routeCombinations[routeIndex]));
-
-        int points = getPointsForTimeFrame(selectedTimeFrame);
-        if (routeData[routeIndex].length > points) {
-          routeData[routeIndex].removeAt(0);
+        if (!_isPaused) {
+          setState(() {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOut,
+              );
+            }
+          });
         }
-      }
-    });
-  }
-
-
-  // sytem  deisng the
-  void startDataUpdate() {
-    _timer?.cancel();
-    Duration duration;
-    switch (intervalUnit) {
-      case 'Seconds':
-        duration = Duration(milliseconds: (updateInterval * 1000).toInt());
-        break;
-      case 'Minutes':
-        duration = Duration(seconds: (updateInterval * 60).toInt());
-        break;
-      default:
-        duration = Duration(milliseconds: (updateInterval * 1000).toInt());
-    }
-    _timer = Timer.periodic(duration, (timer) => updateData());
-  }
-
-  int getPointsForTimeFrame(String timeFrame) {
-    switch (timeFrame) {
-      case 'Hourly': return 48;
-      case 'Daily': return 60;
-      case 'Weekly': return 104;
-      case 'Monthly': return 24;
-      case 'Yearly': return 20;
-      default: return 48;
-    }
-  }
-  // design
-  DateTime getTimeForFrame(DateTime now, int i) {
-    switch (selectedTimeFrame) {
-      case 'Hourly':
-        return now.subtract(Duration(hours: i));
-      case 'Daily':
-        return now.subtract(Duration(days: i));
-      case 'Weekly':
-        return now.subtract(Duration(days: i * 7));
-      case 'Monthly':
-        return DateTime(now.year, now.month - i, now.day);
-      case 'Yearly':
-        return DateTime(now.year - i, now.month, now.day);
-      default:
-        return now.subtract(Duration(hours: i));
-    }
-  }
-  String getAxisLabel(double value) {
-    int index = value.toInt();
-    if (index >= 0 && index < routeData[0].length) {
-      DateTime time = routeData[0][index].time;
-      switch (selectedTimeFrame) {
-        case 'Hourly':
-          return '${time.hour % 12 == 0 ? 12 : time.hour % 12}${time.hour < 12 ? 'AM' : 'PM'}';
-        case 'Daily':
-          return '${time.day}';
-        case 'Weekly':
-          List<String> days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          return days[time.weekday % 7];
-        case 'Monthly':
-          List<String> months = [
-            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-          ];
-          return '${months[time.month - 1]} ${time.day}';
-        case 'Yearly':
-          return '${time.year}';
-      }
-    }
-    return '';
+      },
+      onError: (error) => print('WebSocket error: $error'),
+      onDone: () => print('WebSocket connection closed'),
+    );
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _scrollController.dispose();
+    channel.sink.close();
     super.dispose();
+  }
+
+  double _getAxisInterval() {
+    // This logic might need refinement based on how many data points are expected
+    // per time frame. Assuming data arrives every 2 seconds, and if a 1-minute view
+    // shows, say, 30 points, then every 15 points (30 seconds) might be a good interval.
+    // Let's make it dynamic based on the actual number of points.
+    if (routeData.isEmpty || routeData[0].isEmpty) return 1.0;
+
+    final int numberOfPoints = routeData[0].length;
+    double interval = 1.0; // Default to showing every point
+
+    switch (selectedTimeFrame) {
+      case '1 Minute':
+      // If we expect 30 points per minute (2-second interval), show every 10 points
+        interval = (numberOfPoints / 3).floorToDouble(); // Approximately 20 seconds apart
+        if (interval < 1) interval = 1;
+        break;
+      case '5 Minutes':
+      // Show every minute mark (30 points * 5 minutes = 150 points total)
+        interval = (numberOfPoints / 5).floorToDouble(); // Approximately 1 minute apart
+        if (interval < 1) interval = 1;
+        break;
+      case 'Hourly':
+      // Show every 10 minutes (30 points * 60 minutes / 6 = 300 points)
+        interval = (numberOfPoints / 6).floorToDouble(); // Approximately 10 minutes apart
+        if (interval < 1) interval = 1;
+        break;
+      case 'Weekly':
+      case 'Monthly':
+      case 'Yearly':
+      // For longer timeframes, intervals will be much larger.
+      // This will need more sophisticated date-based grouping.
+      // For now, a simple proportion:
+        interval = (numberOfPoints / 10).floorToDouble();
+        if (interval < 1) interval = 1;
+        break;
+    }
+    return interval;
+  }
+
+  // Helper method to format the X-axis labels based on the selected view
+  Widget _getBottomTitleWidget(double value, TitleMeta meta) {
+    final index = value.toInt();
+    if (routeData.isEmpty ||
+        routeData[0].isEmpty ||
+        index < 0 ||
+        index >= routeData[0].length) {
+      return const SizedBox.shrink();
+    }
+
+    final currentData = routeData[0][index];
+    // This check for previous data is only relevant for "Weekly", "Monthly", "Yearly"
+    // where you only want to show labels at specific time boundaries.
+    final prevData = index > 0 ? routeData[0][index - 1] : null; // Changed to nullable
+
+    String text = '';
+
+    // Always show time for '1 Minute', '5 Minutes', 'Hourly'
+    if (selectedTimeFrame == '1 Minute' || selectedTimeFrame == '5 Minutes' || selectedTimeFrame == 'Hourly') {
+      text = DateFormat('HH:mm').format(currentData.time);
+    } else if (selectedTimeFrame == 'Weekly') {
+      if (prevData == null || currentData.time.day != prevData.time.day) {
+        text = DateFormat('EEE, d').format(currentData.time);
+      }
+    } else if (selectedTimeFrame == 'Monthly') {
+      if (prevData == null || (currentData.time.day != prevData.time.day && (currentData.time.day == 1 || currentData.time.day == 15))) {
+        text = DateFormat('MMM d, yy').format(currentData.time);
+      }
+    } else if (selectedTimeFrame == 'Yearly') {
+      if (prevData == null || currentData.time.month != prevData.time.month) {
+        text = DateFormat('MMM yy').format(currentData.time);
+      }
+    }
+
+
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // **CORRECTION APPLIED HERE**
+    // Using the constructor as per the documentation
+    return SideTitleWidget(
+      meta: meta, // Use the provided axisSide from TitleMeta
+      space: 8.0,
+      child: Text(text, style: const TextStyle(fontSize: 10)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Color> routeColors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.purple,
-      Colors.orange,
-      Colors.cyan,
-      Colors.pink,
-      Colors.yellow,
-      Colors.teal,
-      Colors.indigo,
-      Colors.lime,
-      Colors.amber,
-    ];
-
-
-    // colum of the  deisn ghe sat
-
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              padding: EdgeInsets.all(8.0),
-              child: DropdownButton<String>(
-                value: selectedTimeFrame,
-                items: <String>['Hourly', 'Daily', 'Weekly', 'Monthly', 'Yearly']
-                    .map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    selectedTimeFrame = newValue!;
-                    generateInitialData();
-                  });
-                },
-              ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Real-Time Route Analytics"),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        actions: [
+          IconButton(
+            icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+            tooltip: _isPaused ? 'Resume' : 'Pause',
+            onPressed: () {
+              setState(() {
+                _isPaused = !_isPaused;
+              });
+            },
+          ),
+        ],
+      ),
+      backgroundColor: Colors.white,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
             ),
-            Row(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                SizedBox(
-                  width: 60,
-                  child: TextField(
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: 'Interval'),
-                    onChanged: (value) {
-                      setState(() {
-                        updateInterval = double.tryParse(value) ?? 1.0;
-                        startDataUpdate();
-                      });
-                    },
-                  ),
+                const Text( // Made const as it doesn't change
+                  'Demand (Passengers)',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
-                SizedBox(width: 8),
                 DropdownButton<String>(
-                  value: intervalUnit,
-                  items: <String>['Seconds', 'Minutes']
-                      .map((String value) {
-                    return DropdownMenuItem<String>(
+                  value: selectedTimeFrame,
+                  items:
+                  <String>[
+                    '1 Minute',
+                    '5 Minutes',
+                    'Hourly',
+                    'Weekly',
+                    'Monthly',
+                    'Yearly',
+                  ]
+                      .map(
+                        (String value) => DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
-                    );
-                  }).toList(),
+                    ),
+                  )
+                      .toList(),
                   onChanged: (String? newValue) {
-                    setState(() {
-                      intervalUnit = newValue!;
-                      startDataUpdate();
-                    });
+                    if (newValue != null) {
+                      setState(() {
+                        selectedTimeFrame = newValue;
+                      });
+                    }
                   },
                 ),
               ],
             ),
-          ],
-        ),
-        // sample of the current vlaue of the  deiang he
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.all(8.0),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: routeData[0].length * 30.0,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(drawHorizontalLine: true),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 60,
-                          getTitlesWidget: (value, meta) => Padding(
-                            padding: EdgeInsets.only(right: 8.0),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
+              child: _buildChart(),
+            ),
+          ),
+          _buildLegend(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChart() {
+    const double yAxisWidth = 50;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double pointSpacing = 10.0;
+        final double dataWidth =
+        routeData.isNotEmpty && routeData[0].isNotEmpty
+            ? routeData[0].length * pointSpacing
+            : 0.0;
+        final double chartWidth = math.max( // Use math.max for clarity
+          constraints.maxWidth - yAxisWidth,
+          dataWidth,
+        );
+
+        return Row(
+          children: [
+            SizedBox(
+              width: yAxisWidth,
+              child: LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: 170,
+                  titlesData: FlTitlesData(
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: yAxisWidth,
+                        interval: 20,
+                        getTitlesWidget: (value, meta) {
+                          // **CORRECTION APPLIED HERE**
+                          // Using the constructor as per the documentation
+                          return SideTitleWidget(
+                            meta: meta, // Pass the axisSide
+                            space: 4.0,
                             child: Text(
-                              value.toStringAsFixed(1),
-                              style: TextStyle(fontSize: 10, color: Colors.white),
+                              value.toStringAsFixed(0),
+                              style: const TextStyle(fontSize: 10),
                             ),
-                          ),
-                        ),
-                        axisNameWidget: Text('Price', style: TextStyle(color: Colors.white)),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 30,
-                          reservedSize: 60,
-                          getTitlesWidget: (value, meta) {
-                            return Padding(
-                              padding: EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                getAxisLabel(value),
-                                style: TextStyle(fontSize: 10, color: Colors.white),
-                              ),
-                            );
-                          },
-                        ),
-                        axisNameWidget: Text('Time', style: TextStyle(color: Colors.white)),
+                          );
+                        },
                       ),
                     ),
-                    minX: 0,
-                    maxX: routeData[0].length.toDouble() - 1,
-                    lineBarsData: List.generate(routeCombinations.length, (index) {
-                      if (!routeVisibility[routeCombinations[index]]!) {
-                        return LineChartBarData(spots: []); // Empty line if not visible
-                      }
-                      return LineChartBarData(
-                        spots: routeData[index]
-                            .asMap()
-                            .entries
-                            .map((e) => FlSpot(e.key.toDouble(), e.value.price))
-                            .toList(),
-                        isCurved: true,
-                        color: routeColors[index % routeColors.length],
-                        barWidth: 2,
-                        belowBarData: BarAreaData(show: false),
-                      );
-                    }),
-                    backgroundColor: Colors.black87,
-                    borderData: FlBorderData(show: true, border: Border.all(color: Colors.white30)),
+                  ),
+                  gridData: FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [],
+                ),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: chartWidth,
+                  child: LineChart(
+                    LineChartData(
+                      minY: 0,
+                      maxY: 170,
+                      minX: 0,
+                      maxX:
+                      routeData.isNotEmpty && routeData[0].isNotEmpty
+                          ? (routeData[0].length - 1).toDouble()
+                          : 10,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: true,
+                        horizontalInterval: 20,
+                      ),
+                      borderData: FlBorderData(
+                        show: true,
+                        border: const Border( // Made const
+                          bottom: BorderSide(color: Colors.black26),
+                          left: BorderSide(color: Colors.black26),
+                        ),
+                      ),
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        topTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            interval: _getAxisInterval(),
+                            getTitlesWidget: _getBottomTitleWidget,
+                          ),
+                        ),
+                      ),
+                      lineBarsData: _getLineBarsData(),
+                      lineTouchData: _getLineTouchData(),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-        // Legend with toggle switches
-        Container(
-          height: 50,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: List.generate(routeCombinations.length, (index) {
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: 100),
-                child: Row(
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLegend() {
+    return Container(
+      height: 70,
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey[300]!)),
+      ),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: routeCombinations.length,
+        itemBuilder: (context, index) {
+          final routeName = routeCombinations[index];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
                   children: [
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 12,
+                      height: 12,
                       color: routeColors[index % routeColors.length],
                     ),
-                    SizedBox(width: 4),
-                    Text(
-                      routeCombinations[index],
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                    SizedBox(width: 4),
-                    Switch(
-                      value: routeVisibility[routeCombinations[index]]!,
-                      onChanged: (bool value) {
-                        setState(() {
-                          routeVisibility[routeCombinations[index]] = value;
-                        });
-                      },
-                      activeColor: Colors.green,
-                      inactiveThumbColor: Colors.grey,
-                    ),
+                    const SizedBox(width: 8),
+                    Text(routeName, style: const TextStyle(fontSize: 12)),
                   ],
                 ),
-              );
-            }),
-          ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 24,
+                  child: Switch(
+                    value: routeVisibility[routeName]!,
+                    onChanged:
+                        (bool value) =>
+                        setState(() => routeVisibility[routeName] = value),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  List<LineChartBarData> _getLineBarsData() {
+    return List.generate(routeCombinations.length, (index) {
+      if (!routeVisibility[routeCombinations[index]]! ||
+          routeData[index].isEmpty) {
+        return LineChartBarData(spots: []);
+      }
+      return LineChartBarData(
+        spots:
+        routeData[index]
+            .asMap()
+            .entries
+            .map((e) => FlSpot(e.key.toDouble(), e.value.demand.toDouble()))
+            .toList(),
+        isCurved: true,
+        color: routeColors[index % routeColors.length],
+        barWidth: 2.5,
+        isStrokeCapRound: true,
+        dotData: FlDotData(show: false),
+        belowBarData: BarAreaData(
+          show: true,
+          color: routeColors[index % routeColors.length].withOpacity(0.2),
         ),
-      ],
+      );
+    });
+  }
+
+  LineTouchData _getLineTouchData() {
+    return LineTouchData(
+      touchTooltipData: LineTouchTooltipData(
+        getTooltipItems: (touchedSpots) {
+          return touchedSpots.map((spot) {
+            final data = routeData[spot.barIndex][spot.x.toInt()];
+            return LineTooltipItem(
+              '${data.routeName}\n${DateFormat('HH:mm:ss').format(data.time)}\nDemand: ${data.demand.toStringAsFixed(1)}',
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            );
+          }).toList();
+        },
+      ),
+      handleBuiltInTouches: true,
     );
   }
 }
